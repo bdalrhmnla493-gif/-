@@ -28,7 +28,7 @@ data class CurrentWeather(
     val weatherCode: Int
 ) {
     val description: String
-        get() = weatherDescription(weatherCode)
+        get() = PrayerWeatherRepository.weatherDescription(weatherCode)
 }
 
 object PrayerWeatherRepository {
