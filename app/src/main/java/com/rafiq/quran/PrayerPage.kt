@@ -69,10 +69,12 @@ internal fun PrayerSummaryCard(
     onOpenPrayer: () -> Unit
 ) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(prayerTimes) {
-        while (true) {
-            nowMillis = System.currentTimeMillis()
-            delay(30_000)
+    LaunchedEffect(prayerTimes != null) {
+        if (prayerTimes != null) {
+            while (true) {
+                nowMillis = System.currentTimeMillis()
+                delay(30_000)
+            }
         }
     }
     val nextPrayer = prayerTimes?.let { findNextPrayer(it, nowMillis) }
@@ -88,6 +90,18 @@ internal fun PrayerSummaryCard(
                 Text(nextPrayer.time, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("متبقي ${formatCountdown(nextPrayer.remainingMillis)}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "الفجر ${prayerTimes.fajr} • الشروق ${prayerTimes.sunrise}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "الظهر ${prayerTimes.dhuhr} • العصر ${prayerTimes.asr}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "المغرب ${prayerTimes.maghrib} • العشاء ${prayerTimes.isha}",
+                    style = MaterialTheme.typography.bodySmall
+                )
                 Text("مواقيت محسوبة بطريقة الهيئة المصرية العامة للمساحة",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
