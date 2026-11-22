@@ -82,6 +82,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -164,13 +165,25 @@ fun RafiqApp() {
                         try {
                             val results = coroutineScope {
                                 val prayerTask = async {
-                                    runCatching {
-                                        PrayerWeatherRepository.fetchPrayerTimes(selectedLatitude, selectedLongitude)
+                                    try {
+                                        Result.success(
+                                            PrayerWeatherRepository.fetchPrayerTimes(selectedLatitude, selectedLongitude)
+                                        )
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        Result.failure(error)
                                     }
                                 }
                                 val weatherTask = async {
-                                    runCatching {
-                                        PrayerWeatherRepository.fetchCurrentWeather(selectedLatitude, selectedLongitude)
+                                    try {
+                                        Result.success(
+                                            PrayerWeatherRepository.fetchCurrentWeather(selectedLatitude, selectedLongitude)
+                                        )
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        Result.failure(error)
                                     }
                                 }
                                 prayerTask.await() to weatherTask.await()
