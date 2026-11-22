@@ -19,4 +19,29 @@ class EgyptLocationsRepositoryTest {
         assertFalse(EgyptLocationsRepository.isValidCoordinates(Double.NaN, 31.0))
         assertFalse(EgyptLocationsRepository.isValidCoordinates(30.0, Double.POSITIVE_INFINITY))
     }
+
+    @Test
+    fun nearestAreaFindsNearestAndRejectsFarAwayLocations() {
+        val area = EgyptAdministrativeArea(
+            id = "EG0001",
+            name = "منطقة اختبار",
+            unitType = "مركز",
+            latitude = 30.0444,
+            longitude = 31.2357
+        )
+        val governorate = EgyptGovernorate(
+            id = "EG01",
+            name = "القاهرة",
+            englishName = "Cairo",
+            latitude = 30.0444,
+            longitude = 31.2357,
+            areas = listOf(area)
+        )
+
+        val nearest = EgyptLocationsRepository.findNearestArea(
+            listOf(governorate), 30.0450, 31.2350
+        )
+        assertEquals("EG0001", nearest?.second?.id)
+        assertNull(EgyptLocationsRepository.findNearestArea(listOf(governorate), 25.0, 31.0))
+    }
 }
