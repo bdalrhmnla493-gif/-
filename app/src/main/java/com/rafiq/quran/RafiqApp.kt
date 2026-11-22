@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
@@ -100,7 +101,7 @@ private enum class AppTab(val title: String, val icon: ImageVector) {
     QURAN("القرآن", Icons.Filled.MenuBook),
     ADHKAR("الأذكار", Icons.Filled.Bookmark),
     TASBEEH("السبحة", Icons.Filled.TouchApp),
-    PRAYER("الصلاة", Icons.Filled.Settings),
+    PRAYER("الصلاة", Icons.Filled.AccessTime),
     MORE("المزيد", Icons.Filled.Settings)
 }
 
