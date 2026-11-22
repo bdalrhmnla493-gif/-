@@ -6,36 +6,38 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Gold = Color(0xFFD8B65C)
-private val Emerald = Color(0xFF145B45)
-private val Navy = Color(0xFF172B3A)
+private val Gold = Color(0xFFC7AD7B)
+private val SoftGreen = Color(0xFF78917C)
+private val Green = Color(0xFF526D57)
+private val Ink = Color(0xFF303A32)
+private val Muted = Color(0xFF858C83)
 
 private val LightColors = lightColorScheme(
-    primary = Emerald,
+    primary = Green,
     onPrimary = Color.White,
     secondary = Gold,
-    onSecondary = Color(0xFF211B0D),
-    tertiary = Navy,
-    background = Color(0xFFF6F4ED),
-    onBackground = Color(0xFF18211C),
-    surface = Color(0xFFFFFEFA),
-    onSurface = Color(0xFF18211C),
-    surfaceVariant = Color(0xFFEAE8DE),
-    onSurfaceVariant = Color(0xFF59645D)
+    onSecondary = Ink,
+    tertiary = SoftGreen,
+    background = Color(0xFFF7F6F0),
+    onBackground = Ink,
+    surface = Color.White,
+    onSurface = Ink,
+    surfaceVariant = Color(0xFFEEF0E9),
+    onSurfaceVariant = Muted
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF78B99A),
-    onPrimary = Color(0xFF082217),
+    primary = Color(0xFF9AB39D),
+    onPrimary = Color(0xFF142018),
     secondary = Gold,
-    onSecondary = Color(0xFF251D08),
-    tertiary = Color(0xFF9EB9CA),
-    background = Color(0xFF0B120E),
-    onBackground = Color(0xFFE9EFE9),
-    surface = Color(0xFF131D17),
-    onSurface = Color(0xFFE9EFE9),
-    surfaceVariant = Color(0xFF202D25),
-    onSurfaceVariant = Color(0xFFB9C6BC)
+    onSecondary = Color(0xFF211B10),
+    tertiary = Color(0xFFB9C8B9),
+    background = Color(0xFF101711),
+    onBackground = Color(0xFFE9EEE8),
+    surface = Color(0xFF19231C),
+    onSurface = Color(0xFFE9EEE8),
+    surfaceVariant = Color(0xFF263329),
+    onSurfaceVariant = Color(0xFFB8C3B9)
 )
 
 @Composable
