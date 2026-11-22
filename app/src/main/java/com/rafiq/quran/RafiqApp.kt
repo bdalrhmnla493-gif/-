@@ -204,18 +204,6 @@ fun RafiqApp() {
                     )
                     AppTab.ADHKAR -> AdhkarPage(
                         selected = phrase,
-                        onSelect = {
-                            scope.launch {
-                                context.rafiqDataStore.edit {
-                                    it[TasbeehPhraseKey] = it.let { _ -> it[TasbeehPhraseKey] ?: phrase }
-                                }
-                                context.rafiqDataStore.edit {
-                                    it[TasbeehPhraseKey] = phrase
-                                    it[TasbeehCountKey] = 0
-                                }
-                                context.rafiqDataStore.edit { it[TasbeehPhraseKey] = it.let { _ -> it[TasbeehPhraseKey] ?: phrase } }
-                            }
-                        },
                         onChoose = { chosen ->
                             scope.launch {
                                 context.rafiqDataStore.edit {
