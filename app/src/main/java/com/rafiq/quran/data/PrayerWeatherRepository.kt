@@ -10,6 +10,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 data class PrayerTimes(
     val fajr: String,
@@ -35,7 +36,9 @@ object PrayerWeatherRepository {
     suspend fun fetchPrayerTimes(latitude: Double, longitude: Double): PrayerTimes =
         withContext(Dispatchers.IO) {
             require(EgyptLocationsRepository.isValidCoordinates(latitude, longitude))
-            val date = SimpleDateFormat("dd-MM-yyyy", Locale.US).format(Date())
+            val date = SimpleDateFormat("dd-MM-yyyy", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("Africa/Cairo")
+            }.format(Date())
             val address = "https://api.aladhan.com/v1/timings/$date" +
                 "?latitude=$latitude&longitude=$longitude&method=5&school=0"
             val json = request(address)
