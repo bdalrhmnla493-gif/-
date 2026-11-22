@@ -82,6 +82,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -155,12 +156,16 @@ fun RafiqApp() {
         LaunchedEffect(tab, selectedLatitude, selectedLongitude, prayerRefreshCount) {
             if (tab == AppTab.HOME || tab == AppTab.PRAYER) {
                 if (selectedLatitude != null && selectedLongitude != null) {
-                    val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                    val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                        timeZone = TimeZone.getTimeZone("Africa/Cairo")
+                    }.format(Date())
                     val requestKey = "$selectedLatitude|$selectedLongitude|$todayKey|$prayerRefreshCount"
                     if (lastPrayerRequestKey != requestKey) {
                         lastPrayerRequestKey = requestKey
                         prayerLoading = true
                         prayerError = null
+                        prayerTimes = null
+                        currentWeather = null
                         var completed = false
                         try {
                             val results = coroutineScope {
@@ -436,6 +441,13 @@ private fun HomePage(
                     if (weather != null) {
                         Text(
                             "${weather.temperatureCelsius.toInt()}° م • ${weather.description} • Open-Meteo",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    } else if (!prayerLoading) {
+                        Text(
+                            if (locationName.isBlank()) "اختَر مدينتك لعرض الطقس"
+                            else "الطقس غير متاح حاليًا",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.labelSmall
                         )
