@@ -74,6 +74,7 @@ import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
 import com.rafiq.quran.ui.theme.RafiqTheme
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.launch
@@ -98,6 +99,7 @@ private enum class AppTab(val title: String, val icon: ImageVector) {
     QURAN("القرآن", Icons.Filled.MenuBook),
     ADHKAR("الأذكار", Icons.Filled.Bookmark),
     TASBEEH("السبحة", Icons.Filled.TouchApp),
+    PRAYER("الصلاة", Icons.Filled.Settings),
     MORE("المزيد", Icons.Filled.Settings)
 }
 
@@ -166,7 +168,7 @@ fun RafiqApp() {
             },
             bottomBar = {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    AppTab.values().forEach { item ->
+                    listOf(AppTab.HOME, AppTab.QURAN, AppTab.ADHKAR, AppTab.PRAYER, AppTab.MORE).forEach { item ->
                         NavigationBarItem(
                             selected = tab == item,
                             onClick = { tab = item },
@@ -182,9 +184,12 @@ fun RafiqApp() {
                 when (tab) {
                     AppTab.HOME -> HomePage(
                         count = tasbeehCount,
+                        savedSurah = savedSurah,
+                        savedAyah = savedAyah,
                         onOpenQuran = { tab = AppTab.QURAN },
                         onOpenAdhkar = { tab = AppTab.ADHKAR },
-                        onOpenTasbeeh = { tab = AppTab.TASBEEH }
+                        onOpenTasbeeh = { tab = AppTab.TASBEEH },
+                        onFeature = { infoMessage = it }
                     )
                     AppTab.QURAN -> QuranPage(
                         surahs = surahs,
@@ -236,6 +241,7 @@ fun RafiqApp() {
                             }
                         }
                     )
+                    AppTab.PRAYER -> PrayerPage()
                     AppTab.MORE -> MorePage(
                         themeMode = themeMode,
                         onTheme = { savePreference(ThemeModeKey, it) },
@@ -263,92 +269,111 @@ fun RafiqApp() {
 @Composable
 private fun HomePage(
     count: Int,
+    savedSurah: Int,
+    savedAyah: Int,
     onOpenQuran: () -> Unit,
     onOpenAdhkar: () -> Unit,
-    onOpenTasbeeh: () -> Unit
+    onOpenTasbeeh: () -> Unit,
+    onFeature: (String) -> Unit
 ) {
+    val isFriday = remember { Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY }
     val today = remember {
-        SimpleDateFormat("EEEE، d MMMM", Locale("ar", "EG")).format(Date())
+        SimpleDateFormat("EEEE، d MMMM yyyy", Locale("ar", "EG")).format(Date())
     }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("السلام عليكم", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(today, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text("رفيق القرآن", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("نور في قلبك .. وطمأنينة في حياتك", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         item {
-            Box(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF174D3B), Color(0xFF142D3D))))
-                    .padding(22.dp)
+            Card(
+                Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = if (isFriday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("رفيقك في كل يوم", color = Color(0xFFE7D19A), fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "اجعل للقرآن والأذكار مساحة ثابتة في يومك",
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "مصحف عثماني كامل يعمل دون إنترنت، مع حفظ آخر موضع قراءة.",
-                        color = Color(0xFFE7EDE8)
-                    )
-                    Button(
-                        onClick = onOpenQuran,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFD8B65C),
-                            contentColor = Color(0xFF1B1B13)
-                        ),
-                        shape = RoundedCornerShape(14.dp)
-                    ) { Text("افتح المصحف", fontWeight = FontWeight.Bold) }
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (isFriday) "جمعة مباركة" else "أهلاً بك في رفيق القرآن",
+                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(today, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("التاريخ الهجري: غير متاح حاليًا", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("المدينة والطقس: لم يتم تحديد مدينة داخل التطبيق", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (isFriday) {
+                        Text("تذكير بقراءة سورة الكهف والصلاة على النبي ﷺ", color = MaterialTheme.colorScheme.primary)
+                        TextButton(onClick = onOpenQuran) { Text("افتح المصحف لاختيار سورة الكهف") }
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("الصلاة القادمة", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("مواقيت الصلاة غير مفعّلة بعد", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("لن نعرض أوقاتًا تقديرية على أنها مواقيت صحيحة.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { onFeature("إعداد مواقيت الصلاة والمدينة") }) { Text("إعداد المدينة ومصدر المواقيت") }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenQuran), shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("متابعة القراءة", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    if (savedSurah in 1..114) {
+                        Text("آخر موضع محفوظ: السورة $savedSurah • الآية $savedAyah",
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Text("لم يتم حفظ موضع قراءة بعد", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(onClick = onOpenQuran) { Text(if (savedSurah in 1..114) "استكمل القراءة" else "افتح المصحف") }
                 }
             }
         }
         item {
             Text("ابدأ من هنا", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuickCard("القرآن", "114 سورة", Modifier.weight(1f), onOpenQuran)
-                QuickCard("الأذكار", "اختر ذكرك", Modifier.weight(1f), onOpenAdhkar)
-                QuickCard("السبحة", count.toString(), Modifier.weight(1f), onOpenTasbeeh)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickCard("القرآن الكريم", "114 سورة", Modifier.weight(1f), onOpenQuran)
+                QuickCard("الأذكار", "قائمة التسبيح", Modifier.weight(1f), onOpenAdhkar)
             }
         }
         item {
-            Card(
-                Modifier.fillMaxWidth().clickable(onClick = onOpenTasbeeh),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                QuickCard("الاستماع للقرآن", "غير متاح بعد", Modifier.weight(1f)) { onFeature("الاستماع للقرآن") }
+                QuickCard("المفضلة", "غير متاحة بعد", Modifier.weight(1f)) { onFeature("المفضلة") }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenTasbeeh), shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text("ورد التسبيح", fontWeight = FontWeight.Bold)
-                        Text("العداد محفوظ على جهازك", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("العداد المحفوظ على جهازك", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(count.toString(), fontSize = 28.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
             }
         }
         item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("تنبيه", fontWeight = FontWeight.Bold)
-                    Text(
-                        "مواقيت الصلاة والقبلة وباقي المكتبة ستضاف بعد ربط مصادر موثوقة واختبارها.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("ذكر من قائمة التسبيح", fontWeight = FontWeight.Bold)
+                    Text(dhikrPhrases.first(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("عبارة عامة للتسبيح؛ لا تُعرض هنا على أنها حديث أو ذكر مأثور بتخريج.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = onOpenAdhkar) { Text("افتح الأذكار") }
                 }
             }
         }
@@ -613,6 +638,23 @@ private fun TasbeehPage(
                 label = { Text(option) }
             )
         }
+    }
+}
+
+@Composable
+private fun PrayerPage() {
+    Column(
+        Modifier.fillMaxSize().padding(22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("الصلاة", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "لم يتم ربط مصدر مواقيت الصلاة أو إعداد المدينة حتى الآن. لذلك لا توجد أوقات أو عدادات متبقية معروضة.",
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
