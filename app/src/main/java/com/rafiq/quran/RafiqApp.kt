@@ -71,6 +71,9 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.rafiq.quran.data.CurrentWeather
+import com.rafiq.quran.data.PrayerTimes
+import com.rafiq.quran.data.PrayerWeatherRepository
 import com.rafiq.quran.data.QuranRepository
 import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
@@ -79,6 +82,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 private val Context.rafiqDataStore by preferencesDataStore(name = "rafiq_preferences")
@@ -87,6 +92,10 @@ private val TasbeehCountKey = intPreferencesKey("tasbeeh_count")
 private val TasbeehPhraseKey = stringPreferencesKey("tasbeeh_phrase")
 private val LastReadSurahKey = intPreferencesKey("last_read_surah")
 private val LastReadAyahKey = intPreferencesKey("last_read_ayah")
+private val SelectedLocationNameKey = stringPreferencesKey("selected_location_name")
+private val SelectedGovernorateIdKey = stringPreferencesKey("selected_governorate_id")
+private val SelectedLatitudeKey = stringPreferencesKey("selected_location_latitude")
+private val SelectedLongitudeKey = stringPreferencesKey("selected_location_longitude")
 
 private val dhikrPhrases = listOf(
     "سُبْحَانَ اللَّهِ",
@@ -130,6 +139,66 @@ fun RafiqApp() {
         val phrase = preferences[TasbeehPhraseKey] ?: dhikrPhrases.first()
         val savedSurah = preferences[LastReadSurahKey] ?: 0
         val savedAyah = preferences[LastReadAyahKey] ?: 1
+        val savedLocationName = preferences[SelectedLocationNameKey] ?: ""
+        val savedGovernorateId = preferences[SelectedGovernorateIdKey] ?: ""
+        val selectedLatitude = preferences[SelectedLatitudeKey]?.toDoubleOrNull()
+        val selectedLongitude = preferences[SelectedLongitudeKey]?.toDoubleOrNull()
+
+        var prayerTimes by remember { mutableStateOf<PrayerTimes?>(null) }
+        var currentWeather by remember { mutableStateOf<CurrentWeather?>(null) }
+        var prayerLoading by remember { mutableStateOf(false) }
+        var prayerError by remember { mutableStateOf<String?>(null) }
+        var prayerRefreshCount by remember { mutableIntStateOf(0) }
+        var lastPrayerRequestKey by remember { mutableStateOf<String?>(null) }
+
+        LaunchedEffect(tab, selectedLatitude, selectedLongitude, prayerRefreshCount) {
+            if (tab == AppTab.HOME || tab == AppTab.PRAYER) {
+                if (selectedLatitude != null && selectedLongitude != null) {
+                    val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                    val requestKey = "$selectedLatitude|$selectedLongitude|$todayKey|$prayerRefreshCount"
+                    if (lastPrayerRequestKey != requestKey) {
+                        lastPrayerRequestKey = requestKey
+                        prayerLoading = true
+                        prayerError = null
+                        var completed = false
+                        try {
+                            val results = coroutineScope {
+                                val prayerTask = async {
+                                    runCatching {
+                                        PrayerWeatherRepository.fetchPrayerTimes(selectedLatitude, selectedLongitude)
+                                    }
+                                }
+                                val weatherTask = async {
+                                    runCatching {
+                                        PrayerWeatherRepository.fetchCurrentWeather(selectedLatitude, selectedLongitude)
+                                    }
+                                }
+                                prayerTask.await() to weatherTask.await()
+                            }
+                            val prayerResult = results.first
+                            val weatherResult = results.second
+                            prayerTimes = prayerResult.getOrNull()
+                            currentWeather = weatherResult.getOrNull()
+                            prayerError = when {
+                                prayerResult.isFailure ->
+                                    "تعذر تحميل مواقيت الصلاة. تحقق من الإنترنت ثم حاول التحديث."
+                                weatherResult.isFailure ->
+                                    "تم تحميل المواقيت، لكن الطقس غير متاح حاليًا."
+                                else -> null
+                            }
+                            completed = true
+                        } finally {
+                            prayerLoading = false
+                            if (!completed) lastPrayerRequestKey = null
+                        }
+                    }
+                } else {
+                    prayerTimes = null
+                    currentWeather = null
+                    prayerError = null
+                }
+            }
+        }
 
         LaunchedEffect(tab, retryCount) {
             if (tab == AppTab.QURAN && surahs == null && !quranLoading) {
@@ -188,9 +257,15 @@ fun RafiqApp() {
                         count = tasbeehCount,
                         savedSurah = savedSurah,
                         savedAyah = savedAyah,
+                        locationName = savedLocationName,
+                        prayerTimes = prayerTimes,
+                        weather = currentWeather,
+                        prayerLoading = prayerLoading,
+                        prayerError = prayerError,
                         onOpenQuran = { tab = AppTab.QURAN },
                         onOpenAdhkar = { tab = AppTab.ADHKAR },
                         onOpenTasbeeh = { tab = AppTab.TASBEEH },
+                        onOpenPrayer = { tab = AppTab.PRAYER },
                         onFeature = { infoMessage = it }
                     )
                     AppTab.QURAN -> QuranPage(
@@ -243,7 +318,31 @@ fun RafiqApp() {
                             }
                         }
                     )
-                    AppTab.PRAYER -> PrayerPage()
+                    AppTab.PRAYER -> PrayerPage(
+                        locationName = savedLocationName,
+                        savedGovernorateId = savedGovernorateId,
+                        latitude = selectedLatitude,
+                        longitude = selectedLongitude,
+                        prayerTimes = prayerTimes,
+                        weather = currentWeather,
+                        loading = prayerLoading,
+                        errorMessage = prayerError,
+                        onRefresh = { prayerRefreshCount++ },
+                        onSaveLocation = { name, latitude, longitude, governorateId ->
+                            scope.launch {
+                                context.rafiqDataStore.edit {
+                                    it[SelectedLocationNameKey] = name
+                                    it[SelectedLatitudeKey] = String.format(Locale.US, "%.6f", latitude)
+                                    it[SelectedLongitudeKey] = String.format(Locale.US, "%.6f", longitude)
+                                    if (governorateId.isBlank()) {
+                                        it.remove(SelectedGovernorateIdKey)
+                                    } else {
+                                        it[SelectedGovernorateIdKey] = governorateId
+                                    }
+                                }
+                            }
+                        }
+                    )
                     AppTab.MORE -> MorePage(
                         themeMode = themeMode,
                         onTheme = { savePreference(ThemeModeKey, it) },
@@ -273,9 +372,15 @@ private fun HomePage(
     count: Int,
     savedSurah: Int,
     savedAyah: Int,
+    locationName: String,
+    prayerTimes: PrayerTimes?,
+    weather: CurrentWeather?,
+    prayerLoading: Boolean,
+    prayerError: String?,
     onOpenQuran: () -> Unit,
     onOpenAdhkar: () -> Unit,
     onOpenTasbeeh: () -> Unit,
+    onOpenPrayer: () -> Unit,
     onFeature: (String) -> Unit
 ) {
     val isFriday = remember { Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY }
@@ -307,8 +412,21 @@ private fun HomePage(
                     Text(if (isFriday) "جمعة مباركة" else "أهلاً بك في رفيق القرآن",
                         color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text(today, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text("التاريخ الهجري: غير متاح حاليًا", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("المدينة والطقس: لم يتم تحديد مدينة داخل التطبيق", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "التاريخ الهجري: " + (prayerTimes?.hijriDate ?: "غير متاح حاليًا"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "المدينة: " + locationName.ifBlank { "لم يتم تحديد مدينة" },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (weather != null) {
+                        Text(
+                            "${weather.temperatureCelsius.toInt()}° م • ${weather.description} • Open-Meteo",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                     if (isFriday) {
                         Text("تذكير بقراءة سورة الكهف والصلاة على النبي ﷺ", color = MaterialTheme.colorScheme.primary)
                         TextButton(onClick = onOpenQuran) { Text("افتح المصحف لاختيار سورة الكهف") }
@@ -317,15 +435,13 @@ private fun HomePage(
             }
         }
         item {
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("الصلاة القادمة", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("مواقيت الصلاة غير مفعّلة بعد", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("لن نعرض أوقاتًا تقديرية على أنها مواقيت صحيحة.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { onFeature("إعداد مواقيت الصلاة والمدينة") }) { Text("إعداد المدينة ومصدر المواقيت") }
-                }
-            }
+            PrayerSummaryCard(
+                locationName = locationName,
+                prayerTimes = prayerTimes,
+                loading = prayerLoading,
+                errorMessage = prayerError,
+                onOpenPrayer = onOpenPrayer
+            )
         }
         item {
             Card(Modifier.fillMaxWidth().clickable(onClick = onOpenQuran), shape = RoundedCornerShape(22.dp),
@@ -678,23 +794,6 @@ private fun TasbeehPage(
                 label = { Text(option) }
             )
         }
-    }
-}
-
-@Composable
-private fun PrayerPage() {
-    Column(
-        Modifier.fillMaxSize().padding(22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text("الصلاة", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "لم يتم ربط مصدر مواقيت الصلاة أو إعداد المدينة حتى الآن. لذلك لا توجد أوقات أو عدادات متبقية معروضة.",
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
