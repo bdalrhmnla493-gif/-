@@ -1,6 +1,7 @@
 package com.rafiq.quran
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -409,8 +410,11 @@ private fun QuranPage(
     retry: () -> Unit,
     savePosition: (Int, Int) -> Unit
 ) {
-    var selectedSurah by rememberSaveable { mutableIntStateOf(0) }
+    var selectedSurah by rememberSaveable { mutableIntStateOf(savedSurah) }
     var query by rememberSaveable { mutableStateOf("") }
+    var ayahQuery by rememberSaveable { mutableStateOf("") }
+    var readerTone by rememberSaveable { mutableStateOf("paper") }
+    val context = LocalContext.current
     val active = surahs?.firstOrNull { it.number == selectedSurah }
 
     if (active != null) {
@@ -430,15 +434,37 @@ private fun QuranPage(
                     )
                 }
             }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(selected = readerTone == "paper", onClick = { readerTone = "paper" }, label = { Text("ورقي") })
+                FilterChip(selected = readerTone == "white", onClick = { readerTone = "white" }, label = { Text("أبيض") })
+                FilterChip(selected = readerTone == "dark", onClick = { readerTone = "dark" }, label = { Text("ليلي") })
+            }
+            OutlinedTextField(
+                value = ayahQuery,
+                onValueChange = { ayahQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                singleLine = true,
+                label = { Text("بحث داخل السورة") },
+                shape = RoundedCornerShape(14.dp)
+            )
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(active.ayahs, key = { it.number }) { ayah ->
+                items(active.ayahs.filter { ayahQuery.isBlank() || it.text.contains(ayahQuery.trim()) }, key = { it.number }) { ayah ->
                     Card(
                         shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        colors = CardDefaults.cardColors(
+                            containerColor = when (readerTone) {
+                                "dark" -> Color(0xFF17211B)
+                                "white" -> Color.White
+                                else -> Color(0xFFF7F3E8)
+                            }
+                        )
                     ) {
                         Column(
                             Modifier.fillMaxWidth().padding(16.dp),
@@ -448,6 +474,7 @@ private fun QuranPage(
                                 ayah.text,
                                 Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
+                                color = if (readerTone == "dark") Color(0xFFF1F1E8) else Color(0xFF26352B),
                                 style = MaterialTheme.typography.headlineSmall.copy(lineHeight = 44.sp)
                             )
                             Row(
@@ -456,8 +483,20 @@ private fun QuranPage(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("آية " + ayah.number, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                TextButton(onClick = { savePosition(active.number, ayah.number) }) {
-                                    Text("حفظ الموضع")
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(onClick = { savePosition(active.number, ayah.number) }) {
+                                        Text("حفظ الموضع")
+                                    }
+                                    TextButton(onClick = {
+                                        val shareText = ayah.text + "\n" + active.name + " • الآية " + ayah.number
+                                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "مشاركة الآية"))
+                                    }) {
+                                        Text("مشاركة")
+                                    }
                                 }
                             }
                         }
