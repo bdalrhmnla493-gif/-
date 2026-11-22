@@ -1,0 +1,9 @@
+Egypt Administrative Divisions dataset attribution
+
+Source: Open Admin Data — Egypt Administrative Divisions
+https://github.com/open-admin-data/egypt-administrative-divisions
+
+Data license: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+This application includes adapted data from the source dataset. The manual location picker omits 17 records described as outside populated boundaries, desert areas, or port police administrations. Names and coordinates are retained from the source dataset.
