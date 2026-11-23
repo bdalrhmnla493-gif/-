@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -76,6 +77,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.edit
@@ -87,6 +89,7 @@ import com.rafiq.quran.data.CurrentWeather
 import com.rafiq.quran.data.PrayerTimes
 import com.rafiq.quran.data.PrayerWeatherRepository
 import com.rafiq.quran.data.QuranRepository
+import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
 import com.rafiq.quran.ui.theme.RafiqTheme
@@ -996,8 +999,19 @@ private fun QuranPage(
     var query by rememberSaveable { mutableStateOf("") }
     var ayahQuery by rememberSaveable { mutableStateOf("") }
     var readerTone by rememberSaveable { mutableStateOf("paper") }
+    var pendingAyahNumber by rememberSaveable { mutableIntStateOf(savedAyah.coerceAtLeast(1)) }
+    val readerListState = rememberLazyListState()
     val context = LocalContext.current
     val active = surahs?.firstOrNull { it.number == selectedSurah }
+
+    LaunchedEffect(active?.number, pendingAyahNumber) {
+        val targetAyah = pendingAyahNumber
+        if (active != null && targetAyah > 0) {
+            val targetIndex = active.ayahs.indexOfFirst { it.number == targetAyah }
+            if (targetIndex >= 0) readerListState.scrollToItem(targetIndex)
+            pendingAyahNumber = 0
+        }
+    }
 
     if (active != null) {
         Column(Modifier.fillMaxSize()) {
@@ -1033,7 +1047,8 @@ private fun QuranPage(
                 shape = RoundedCornerShape(14.dp)
             )
             LazyColumn(
-                Modifier.fillMaxSize(),
+                state = readerListState,
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1121,6 +1136,9 @@ private fun QuranPage(
                 it.transliteration.contains(query.trim(), ignoreCase = true) ||
                 it.englishName.contains(query.trim(), ignoreCase = true)
         }
+        val matchingAyahs = remember(allSurahs, query) {
+            QuranSearch.search(allSurahs, query, limit = 100)
+        }
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
@@ -1132,7 +1150,7 @@ private fun QuranPage(
                     onValueChange = { query = it },
                     Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("ابحث عن سورة") },
+                    label = { Text("ابحث عن سورة أو آية") },
                     shape = RoundedCornerShape(16.dp)
                 )
             }
@@ -1141,7 +1159,11 @@ private fun QuranPage(
                 if (last != null) {
                     item {
                         Card(
-                            Modifier.fillMaxWidth().clickable { selectedSurah = last.number },
+                            Modifier.fillMaxWidth().clickable {
+                                selectedSurah = last.number
+                                ayahQuery = ""
+                                pendingAyahNumber = savedAyah.coerceAtLeast(1)
+                            },
                             shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
@@ -1153,11 +1175,74 @@ private fun QuranPage(
                     }
                 }
             }
+            if (query.isNotBlank()) {
+                item {
+                    Text(
+                        "نتائج البحث في الآيات",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (matchingAyahs.isEmpty()) {
+                    item {
+                        Text(
+                            "لا توجد آيات مطابقة لعبارة البحث.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(
+                        matchingAyahs,
+                        key = { "search-${it.surahNumber}-${it.ayahNumber}" }
+                    ) { result ->
+                        Card(
+                            Modifier.fillMaxWidth().clickable {
+                                selectedSurah = result.surahNumber
+                                ayahQuery = ""
+                                pendingAyahNumber = result.ayahNumber
+                                savePosition(result.surahNumber, result.ayahNumber)
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(
+                                Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    "${result.surahName} • الآية ${result.ayahNumber}",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    result.text,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+                    }
+                }
+                if (matchingAyahs.size == 100) {
+                    item {
+                        Text(
+                            "تظهر أول 100 نتيجة. أضف كلمات أكثر لتضييق البحث.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
             item { Text("السور • " + filtered.size, fontWeight = FontWeight.Bold) }
             items(filtered, key = { it.number }) { surah ->
                 Card(
                     Modifier.fillMaxWidth().clickable {
                         selectedSurah = surah.number
+                        ayahQuery = ""
+                        pendingAyahNumber = 1
                         savePosition(surah.number, 1)
                     },
                     shape = RoundedCornerShape(18.dp),
