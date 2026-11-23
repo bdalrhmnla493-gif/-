@@ -3,6 +3,7 @@ package com.rafiq.quran
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -70,6 +71,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -435,6 +439,27 @@ private fun HomePage(
     val dailyDhikr = dhikrPhrases[(dayOfYear - 1) % dhikrPhrases.size]
     val isFriday = cairoCalendar.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
 
+    val baseTypography = MaterialTheme.typography
+    val homeTypography = remember(baseTypography) {
+        baseTypography.copy(
+            displayLarge = baseTypography.displayLarge.copy(fontFamily = HomeArabicFont),
+            displayMedium = baseTypography.displayMedium.copy(fontFamily = HomeArabicFont),
+            displaySmall = baseTypography.displaySmall.copy(fontFamily = HomeArabicFont),
+            headlineLarge = baseTypography.headlineLarge.copy(fontFamily = HomeArabicFont),
+            headlineMedium = baseTypography.headlineMedium.copy(fontFamily = HomeArabicFont),
+            headlineSmall = baseTypography.headlineSmall.copy(fontFamily = HomeArabicFont),
+            titleLarge = baseTypography.titleLarge.copy(fontFamily = HomeArabicFont),
+            titleMedium = baseTypography.titleMedium.copy(fontFamily = HomeArabicFont),
+            titleSmall = baseTypography.titleSmall.copy(fontFamily = HomeArabicFont),
+            bodyLarge = baseTypography.bodyLarge.copy(fontFamily = HomeArabicFont),
+            bodyMedium = baseTypography.bodyMedium.copy(fontFamily = HomeArabicFont),
+            bodySmall = baseTypography.bodySmall.copy(fontFamily = HomeArabicFont),
+            labelLarge = baseTypography.labelLarge.copy(fontFamily = HomeArabicFont),
+            labelMedium = baseTypography.labelMedium.copy(fontFamily = HomeArabicFont),
+            labelSmall = baseTypography.labelSmall.copy(fontFamily = HomeArabicFont)
+        )
+    }
+    MaterialTheme(typography = homeTypography) {
     Box(
         Modifier.fillMaxSize().background(
             Brush.verticalGradient(
@@ -650,7 +675,11 @@ private fun HomePage(
             }
         }
     }
+    }
 }
+private val HomeArabicFont = FontFamily(
+    Font(R.font.noto_kufi_arabic_variable, FontWeight.Normal)
+)
 
 private val HomeGreen = Color(0xFF19432F)
 private val HomeGold = Color(0xFFD5AD59)
@@ -878,48 +907,13 @@ private fun HomeHeaderLogo() {
             .border(1.4.dp, HomeGold, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(38.dp)) {
-            val w = size.width
-            val h = size.height
-            val base = h * 0.86f
-            drawRoundRect(
-                Color(0xFF315A40),
-                topLeft = Offset(w * 0.12f, h * 0.50f),
-                size = Size(w * 0.76f, h * 0.38f),
-                cornerRadius = CornerRadius(w * 0.06f)
-            )
-            val dome = Path().apply {
-                moveTo(w * 0.28f, base)
-                cubicTo(w * 0.28f, h * 0.35f, w * 0.40f, h * 0.18f, w * 0.50f, h * 0.18f)
-                cubicTo(w * 0.60f, h * 0.18f, w * 0.72f, h * 0.35f, w * 0.72f, base)
-                close()
-            }
-            drawPath(dome, Color(0xFFB88B3E))
-            drawRoundRect(
-                Color(0xFF315A40),
-                topLeft = Offset(w * 0.08f, h * 0.31f),
-                size = Size(w * 0.09f, h * 0.57f),
-                cornerRadius = CornerRadius(w * 0.025f)
-            )
-            drawRoundRect(
-                Color(0xFF315A40),
-                topLeft = Offset(w * 0.83f, h * 0.31f),
-                size = Size(w * 0.09f, h * 0.57f),
-                cornerRadius = CornerRadius(w * 0.025f)
-            )
-            drawCircle(Color(0xFFD6B66C), w * 0.025f, Offset(w * 0.125f, h * 0.28f))
-            drawCircle(Color(0xFFD6B66C), w * 0.025f, Offset(w * 0.875f, h * 0.28f))
-            drawRoundRect(
-                Color(0xFFFFE8B9),
-                topLeft = Offset(w * 0.45f, h * 0.62f),
-                size = Size(w * 0.10f, h * 0.25f),
-                cornerRadius = CornerRadius(w * 0.025f)
-            )
-            drawLine(Color(0xFFFFE8B9), Offset(w * 0.50f, h * 0.18f), Offset(w * 0.50f, h * 0.06f), w * 0.025f)
-        }
+        Image(
+            painter = painterResource(id = R.drawable.ic_rafiq_logo),
+            contentDescription = "شعار رفيق القرآن",
+            modifier = Modifier.size(42.dp)
+        )
     }
 }
-
 @Composable
 private fun HomeSectionTitle(title: String) {
     Row(
@@ -1027,59 +1021,81 @@ private fun HomeFeatureCard(
 
 @Composable
 private fun MascotIllustration() {
-    Canvas(Modifier.size(76.dp)) {
+    Canvas(Modifier.size(64.dp)) {
         val w = size.width
         val h = size.height
-        drawCircle(Color(0xFFF4E8CF), radius = w * 0.48f)
+        drawCircle(Color(0xFFF3E9D6), radius = w * 0.49f)
+        drawCircle(
+            Color(0xFFD8C29A).copy(alpha = 0.28f),
+            radius = w * 0.34f,
+            center = Offset(w * 0.50f, h * 0.91f)
+        )
 
         val robe = Path().apply {
-            moveTo(w * 0.12f, h * 0.96f)
-            cubicTo(w * 0.17f, h * 0.66f, w * 0.34f, h * 0.57f, w * 0.50f, h * 0.58f)
-            cubicTo(w * 0.68f, h * 0.57f, w * 0.84f, h * 0.68f, w * 0.89f, h * 0.96f)
+            moveTo(w * 0.13f, h * 0.96f)
+            cubicTo(w * 0.16f, h * 0.68f, w * 0.32f, h * 0.57f, w * 0.50f, h * 0.59f)
+            cubicTo(w * 0.68f, h * 0.57f, w * 0.84f, h * 0.68f, w * 0.87f, h * 0.96f)
             close()
         }
-        drawPath(robe, Color(0xFF416B4C))
-
-        drawCircle(Color(0xFFE9B989), radius = w * 0.235f, center = Offset(w * 0.50f, h * 0.39f))
-        drawCircle(Color(0xFFFFD7B2), radius = w * 0.19f, center = Offset(w * 0.50f, h * 0.40f))
-        drawCircle(Color(0xFF49372B), radius = w * 0.023f, center = Offset(w * 0.42f, h * 0.40f))
-        drawCircle(Color(0xFF49372B), radius = w * 0.023f, center = Offset(w * 0.58f, h * 0.40f))
-        drawCircle(Color(0xFFE79A86), radius = w * 0.025f, center = Offset(w * 0.37f, h * 0.47f))
-        drawCircle(Color(0xFFE79A86), radius = w * 0.025f, center = Offset(w * 0.63f, h * 0.47f))
-        drawLine(Color(0xFF9A5F4E), Offset(w * 0.46f, h * 0.51f), Offset(w * 0.54f, h * 0.51f), w * 0.014f)
-
-        drawRoundRect(
-            Color(0xFFFFFEF7),
-            topLeft = Offset(w * 0.29f, h * 0.14f),
-            size = Size(w * 0.42f, h * 0.13f),
-            cornerRadius = CornerRadius(w * 0.09f)
+        drawPath(robe, Color(0xFF315A40))
+        drawPath(
+            Path().apply {
+                moveTo(w * 0.22f, h * 0.91f)
+                cubicTo(w * 0.28f, h * 0.70f, w * 0.40f, h * 0.65f, w * 0.47f, h * 0.66f)
+                lineTo(w * 0.43f, h * 0.95f)
+                close()
+            },
+            Color(0xFF477657)
         )
-        drawLine(Color(0xFFDCCDAF), Offset(w * 0.33f, h * 0.24f), Offset(w * 0.67f, h * 0.24f), w * 0.012f)
 
+        // Soft face outline, ears and warm skin shading.
+        drawCircle(Color(0xFFD8A777), w * 0.205f, Offset(w * 0.50f, h * 0.405f))
+        drawCircle(Color(0xFFEFC49E), w * 0.183f, Offset(w * 0.50f, h * 0.405f))
+        drawCircle(Color(0xFFE7B78F), w * 0.038f, Offset(w * 0.315f, h * 0.43f))
+        drawCircle(Color(0xFFE7B78F), w * 0.038f, Offset(w * 0.685f, h * 0.43f))
+        drawCircle(Color.White, w * 0.032f, Offset(w * 0.425f, h * 0.405f))
+        drawCircle(Color.White, w * 0.032f, Offset(w * 0.575f, h * 0.405f))
+        drawCircle(Color(0xFF49372B), w * 0.018f, Offset(w * 0.425f, h * 0.405f))
+        drawCircle(Color(0xFF49372B), w * 0.018f, Offset(w * 0.575f, h * 0.405f))
+        drawCircle(Color(0xFFFFD2C2).copy(alpha = 0.9f), w * 0.035f, Offset(w * 0.37f, h * 0.475f))
+        drawCircle(Color(0xFFFFD2C2).copy(alpha = 0.9f), w * 0.035f, Offset(w * 0.63f, h * 0.475f))
+        drawLine(Color(0xFF9A5F4E), Offset(w * 0.465f, h * 0.515f), Offset(w * 0.535f, h * 0.515f), w * 0.012f)
+
+        // Rounded green kufi with a fine gold edge.
+        val cap = Path().apply {
+            moveTo(w * 0.285f, h * 0.31f)
+            cubicTo(w * 0.30f, h * 0.13f, w * 0.39f, h * 0.105f, w * 0.50f, h * 0.105f)
+            cubicTo(w * 0.61f, h * 0.105f, w * 0.70f, h * 0.13f, w * 0.715f, h * 0.31f)
+            close()
+        }
+        drawPath(cap, Color(0xFF315A40))
+        drawLine(Color(0xFFD7B76F), Offset(w * 0.30f, h * 0.285f), Offset(w * 0.70f, h * 0.285f), w * 0.018f)
+        drawCircle(Color(0xFFD7B76F), w * 0.018f, Offset(w * 0.50f, h * 0.145f))
+
+        // Open Quran held close to the body.
         val leftPage = Path().apply {
-            moveTo(w * 0.24f, h * 0.69f)
-            quadraticTo(w * 0.38f, h * 0.62f, w * 0.49f, h * 0.72f)
+            moveTo(w * 0.235f, h * 0.705f)
+            quadraticTo(w * 0.37f, h * 0.635f, w * 0.49f, h * 0.73f)
             lineTo(w * 0.49f, h * 0.91f)
-            quadraticTo(w * 0.35f, h * 0.83f, w * 0.24f, h * 0.86f)
+            quadraticTo(w * 0.35f, h * 0.845f, w * 0.235f, h * 0.875f)
             close()
         }
         val rightPage = Path().apply {
-            moveTo(w * 0.51f, h * 0.72f)
-            quadraticTo(w * 0.63f, h * 0.62f, w * 0.76f, h * 0.69f)
-            lineTo(w * 0.76f, h * 0.86f)
-            quadraticTo(w * 0.63f, h * 0.83f, w * 0.51f, h * 0.91f)
+            moveTo(w * 0.51f, h * 0.73f)
+            quadraticTo(w * 0.63f, h * 0.635f, w * 0.765f, h * 0.705f)
+            lineTo(w * 0.765f, h * 0.875f)
+            quadraticTo(w * 0.65f, h * 0.845f, w * 0.51f, h * 0.91f)
             close()
         }
         drawPath(leftPage, Color(0xFFFFF0CE))
         drawPath(rightPage, Color(0xFFFFF8E8))
-        drawLine(Color(0xFFB88B3E), Offset(w * 0.50f, h * 0.71f), Offset(w * 0.50f, h * 0.92f), w * 0.018f)
-        drawLine(Color(0xFFD9B86F), Offset(w * 0.30f, h * 0.74f), Offset(w * 0.43f, h * 0.77f), w * 0.012f)
-        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.77f), Offset(w * 0.70f, h * 0.74f), w * 0.012f)
-        drawLine(Color(0xFFD9B86F), Offset(w * 0.30f, h * 0.79f), Offset(w * 0.43f, h * 0.82f), w * 0.012f)
-        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.82f), Offset(w * 0.70f, h * 0.79f), w * 0.012f)
+        drawLine(Color(0xFFB88B3E), Offset(w * 0.50f, h * 0.715f), Offset(w * 0.50f, h * 0.925f), w * 0.02f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.29f, h * 0.755f), Offset(w * 0.43f, h * 0.78f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.78f), Offset(w * 0.71f, h * 0.755f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.29f, h * 0.81f), Offset(w * 0.43f, h * 0.835f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.835f), Offset(w * 0.71f, h * 0.81f), w * 0.012f)
     }
 }
-
 @Composable
 private fun QuickCard(title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
     Card(
