@@ -2,6 +2,7 @@ package com.rafiq.quran
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +24,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.MenuBook
@@ -50,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,8 +62,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -108,9 +116,9 @@ private val dhikrPhrases = listOf(
 )
 
 private enum class AppTab(val title: String, val icon: ImageVector) {
-    HOME("الرئيسية", Icons.Filled.AutoStories),
+    HOME("الرئيسية", Icons.Filled.Home),
     QURAN("القرآن", Icons.Filled.MenuBook),
-    ADHKAR("الأذكار", Icons.Filled.Bookmark),
+    ADHKAR("الأذكار", Icons.Filled.Spa),
     TASBEEH("السبحة", Icons.Filled.TouchApp),
     PRAYER("الصلاة", Icons.Filled.AccessTime),
     MORE("المزيد", Icons.Filled.Settings)
@@ -239,31 +247,43 @@ fun RafiqApp() {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("رفيق القرآن", fontWeight = FontWeight.Bold)
-                            Text(
-                                tab.title,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
+                if (tab != AppTab.HOME) {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("رفيق القرآن", fontWeight = FontWeight.Bold)
+                                Text(
+                                    tab.title,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background
+                        )
                     )
-                )
+                }
             },
             bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBar(
+                    containerColor = HomeGreen,
+                    contentColor = Color.White
+                ) {
                     listOf(AppTab.HOME, AppTab.QURAN, AppTab.ADHKAR, AppTab.PRAYER, AppTab.MORE).forEach { item ->
                         NavigationBarItem(
                             selected = tab == item,
                             onClick = { tab = item },
                             icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.title) },
                             label = { Text(item.title) },
-                            alwaysShowLabel = true
+                            alwaysShowLabel = true,
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFFFFD36F),
+                                selectedTextColor = Color(0xFFFFD36F),
+                                indicatorColor = Color(0xFF315A40),
+                                unselectedIconColor = Color(0xFFF2EAD8),
+                                unselectedTextColor = Color(0xFFF2EAD8)
+                            )
                         )
                     }
                 }
@@ -386,6 +406,7 @@ fun RafiqApp() {
 }
 
 @Composable
+
 private fun HomePage(
     count: Int,
     savedSurah: Int,
@@ -401,63 +422,29 @@ private fun HomePage(
     onOpenPrayer: () -> Unit,
     onFeature: (String) -> Unit
 ) {
-    val isFriday = remember { Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY }
-    val today = remember {
-        SimpleDateFormat("EEEE، d MMMM yyyy", Locale("ar", "EG")).format(Date())
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowMillis = System.currentTimeMillis()
+            kotlinx.coroutines.delay(60_000)
+        }
     }
+    val dayOfYear = Calendar.getInstance().apply { timeInMillis = nowMillis }.get(Calendar.DAY_OF_YEAR)
+    val dailyDhikr = dhikrPhrases[(dayOfYear - 1) % dhikrPhrases.size]
+    val isFriday = Calendar.getInstance().apply { timeInMillis = nowMillis }
+        .get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
         item {
-            Column(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text("رفيق القرآن", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("نور في قلبك .. وطمأنينة في حياتك", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        item {
-            Card(
-                Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = if (isFriday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-            ) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (isFriday) "جمعة مباركة" else "أهلاً بك في رفيق القرآن",
-                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(today, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "التاريخ الهجري: " + (prayerTimes?.hijriDate ?: "غير متاح حاليًا"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "المدينة: " + locationName.ifBlank { "لم يتم تحديد مدينة" },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (weather != null) {
-                        Text(
-                            "${weather.temperatureCelsius.toInt()}° م • ${weather.description} • Open-Meteo",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    } else if (!prayerLoading) {
-                        Text(
-                            if (locationName.isBlank()) "اختَر مدينتك لعرض الطقس"
-                            else "الطقس غير متاح حاليًا",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                    if (isFriday) {
-                        Text("تذكير بقراءة سورة الكهف والصلاة على النبي ﷺ", color = MaterialTheme.colorScheme.primary)
-                        TextButton(onClick = onOpenQuran) { Text("افتح المصحف لاختيار سورة الكهف") }
-                    }
-                }
-            }
+            HomeHeader(
+                locationName = locationName,
+                weather = weather,
+                onNotifications = { onFeature("الإشعارات") }
+            )
         }
         item {
             PrayerSummaryCard(
@@ -469,59 +456,426 @@ private fun HomePage(
             )
         }
         item {
-            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenQuran), shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("متابعة القراءة", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    if (savedSurah in 1..114) {
-                        Text("آخر موضع محفوظ: السورة $savedSurah • الآية $savedAyah",
-                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    } else {
-                        Text("لم يتم حفظ موضع قراءة بعد", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HomeSectionTitle("ذكر اليوم")
+            Card(
+                modifier = Modifier.fillMaxWidth().border(1.dp, HomeGold, RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = HomeCream)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MascotIllustration()
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            dailyDhikr,
+                            color = HomeGreen,
+                            fontSize = 21.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "عبارة تسبيح عامة من القائمة المحلية — وليست معروضة كحديث أو ذكر مُخرَّج",
+                            color = HomeMuted,
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 15.sp
+                        )
+                        TextButton(onClick = onOpenAdhkar) {
+                            Text("افتح الأذكار", color = HomeGreen)
+                        }
                     }
-                    Button(onClick = onOpenQuran) { Text(if (savedSurah in 1..114) "استكمل القراءة" else "افتح المصحف") }
                 }
             }
         }
         item {
-            Text("ابدأ من هنا", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                QuickCard("القرآن الكريم", "114 سورة", Modifier.weight(1f), onOpenQuran)
-                QuickCard("الأذكار", "قائمة التسبيح", Modifier.weight(1f), onOpenAdhkar)
+            HomeSectionTitle("الاستمرار والإنجازات")
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                HomeStatusCard("🔥", "سلسلة الاستمرار", "قيد التجهيز", Modifier.weight(1f)) {
+                    onFeature("سلسلة الاستمرار")
+                }
+                HomeStatusCard("🏆", "إنجازاتي", "غير متاحة بعد", Modifier.weight(1f)) {
+                    onFeature("الإنجازات")
+                }
+                HomeStatusCard("🪙", "نقاطي", "غير مفعّلة", Modifier.weight(1f)) {
+                    onFeature("النقاط")
+                }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                QuickCard("الاستماع للقرآن", "غير متاح بعد", Modifier.weight(1f)) { onFeature("الاستماع للقرآن") }
-                QuickCard("المفضلة", "غير متاحة بعد", Modifier.weight(1f)) { onFeature("المفضلة") }
+            HomeSectionTitle("المميزات السريعة")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeFeatureCard("🎧", "مشغل القرآن", "قريبًا", Modifier.weight(1f)) {
+                        onFeature("مشغل القرآن")
+                    }
+                    HomeFeatureCard("📖", "ختمتي ورحلتي", "قريبًا", Modifier.weight(1f)) {
+                        onFeature("ختمتي ورحلتي")
+                    }
+                    HomeFeatureCard("🧭", "القبلة", "قريبًا", Modifier.weight(1f)) {
+                        onFeature("القبلة")
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeFeatureCard("🌿", "تدبر آية", "قريبًا", Modifier.weight(1f)) {
+                        onFeature("تدبر آية")
+                    }
+                    HomeFeatureCard("📿", "السبحة الذكية", "${count} تسبيحة محفوظة", Modifier.weight(1f), onOpenTasbeeh)
+                }
             }
         }
         item {
-            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenTasbeeh), shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenQuran)
+                    .border(1.dp, HomeGold, RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = HomeCream)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("ورد التسبيح", fontWeight = FontWeight.Bold)
-                        Text("العداد المحفوظ على جهازك", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("متابعة القراءة", color = HomeGreen, fontWeight = FontWeight.Bold)
+                        Text(
+                            if (savedSurah in 1..114) {
+                                "آخر موضع محفوظ: السورة ${savedSurah} • الآية ${savedAyah}"
+                            } else {
+                                "لم يتم حفظ موضع قراءة بعد"
+                            },
+                            color = HomeMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
-                    Text(count.toString(), fontSize = 28.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (savedSurah in 1..114) "استكمل القراءة  ←" else "افتح المصحف  ←",
+                        color = HomeGreen,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
         item {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("ذكر من قائمة التسبيح", fontWeight = FontWeight.Bold)
-                    Text(dhikrPhrases.first(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("عبارة عامة للتسبيح؛ لا تُعرض هنا على أنها حديث أو ذكر مأثور بتخريج.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = onOpenAdhkar) { Text("افتح الأذكار") }
+            HomeSectionTitle("محتوى مميز يوميًا")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HomeFeatureCard("🌙", "أذكار النوم", "قريبًا", Modifier.weight(1f)) {
+                    onFeature("أذكار النوم")
+                }
+                HomeFeatureCard("✨", "قيام الليل", "قريبًا", Modifier.weight(1f)) {
+                    onFeature("قيام الليل")
+                }
+                HomeFeatureCard(
+                    "🕌",
+                    "أذكار الجمعة",
+                    if (isFriday) "اليوم الجمعة" else "قريبًا",
+                    Modifier.weight(1f)
+                ) {
+                    onFeature("أذكار الجمعة")
                 }
             }
+        }
+        item {
+            Row(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(Color(0xFFEAF0E8))
+                    .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("✓", color = HomeGreen, fontWeight = FontWeight.Bold)
+                Text(
+                    "  المصحف والسبحة الأساسية متاحان دون إنترنت",
+                    color = HomeGreen,
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Text(
+                "مواقيت الصلاة تحتاج اتصالًا لتحديث بياناتها.",
+                Modifier.fillMaxWidth().padding(top = 3.dp),
+                color = HomeMuted,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.labelSmall
+            )
         }
     }
 }
+
+private val HomeGreen = Color(0xFF19432F)
+private val HomeGold = Color(0xFFD5AD59)
+private val HomeCream = Color(0xFFFFF8EA)
+private val HomeMuted = Color(0xFF776F60)
+
+@Composable
+private fun HomeHeader(
+    locationName: String,
+    weather: CurrentWeather?,
+    onNotifications: () -> Unit
+) {
+    Box(
+        Modifier.fillMaxWidth()
+            .height(190.dp)
+            .clip(RoundedCornerShape(26.dp))
+    ) {
+        Canvas(Modifier.matchParentSize()) {
+            val w = size.width
+            val h = size.height
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFFFFE7BE), Color(0xFFFFF8E9), Color(0xFFE5D6B5))
+                ),
+                size = size
+            )
+            drawCircle(Color(0xFFFFF0C7), radius = h * 0.14f, center = Offset(w * 0.19f, h * 0.37f))
+            val baseY = h * 0.83f
+            drawRect(Color(0xFFD9C8A7), topLeft = Offset(0f, baseY), size = Size(w, h - baseY))
+
+            fun dome(centerX: Float, width: Float, height: Float, color: Color) {
+                val path = Path().apply {
+                    moveTo(centerX - width / 2f, baseY)
+                    cubicTo(
+                        centerX - width * 0.48f, baseY - height * 0.68f,
+                        centerX - width * 0.22f, baseY - height,
+                        centerX, baseY - height
+                    )
+                    cubicTo(
+                        centerX + width * 0.22f, baseY - height,
+                        centerX + width * 0.48f, baseY - height * 0.68f,
+                        centerX + width / 2f, baseY
+                    )
+                    close()
+                }
+                drawPath(path, color)
+            }
+
+            fun minaret(x: Float, height: Float, color: Color) {
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(x - w * 0.012f, baseY - height),
+                    size = Size(w * 0.024f, height),
+                    cornerRadius = CornerRadius(w * 0.01f)
+                )
+                drawCircle(color, radius = w * 0.025f, center = Offset(x, baseY - height))
+                drawCircle(Color(0xFFC49B4F), radius = w * 0.009f, center = Offset(x, baseY - height - w * 0.03f))
+            }
+
+            val stone = Color(0xFFB9A887)
+            drawRoundRect(
+                color = Color(0xFFD2C2A2),
+                topLeft = Offset(w * 0.22f, h * 0.61f),
+                size = Size(w * 0.56f, h * 0.24f),
+                cornerRadius = CornerRadius(w * 0.025f)
+            )
+            dome(w * 0.50f, w * 0.23f, h * 0.31f, stone)
+            dome(w * 0.29f, w * 0.12f, h * 0.18f, Color(0xFFC8B796))
+            dome(w * 0.71f, w * 0.12f, h * 0.18f, Color(0xFFC8B796))
+            dome(w * 0.13f, w * 0.08f, h * 0.12f, Color(0xFFD0C09F))
+            dome(w * 0.87f, w * 0.08f, h * 0.12f, Color(0xFFD0C09F))
+            minaret(w * 0.23f, h * 0.55f, Color(0xFFB8A784))
+            minaret(w * 0.77f, h * 0.55f, Color(0xFFB8A784))
+        }
+
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            HomeHeaderAction(
+                symbol = "🔔",
+                onClick = onNotifications
+            )
+            Column(
+                Modifier.weight(1f).padding(horizontal = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "رفيق القرآن",
+                    color = HomeGreen,
+                    fontSize = 27.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "نور في قلبك .. وطمأنينة في حياتك",
+                    color = HomeGreen,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+                if (weather != null) {
+                    Text(
+                        "${weather.temperatureCelsius.toInt()}° م • ${weather.description}",
+                        color = HomeGreen,
+                        fontSize = 10.sp
+                    )
+                } else {
+                    Text(
+                        locationName.ifBlank { "اختر مدينتك لمواقيت الصلاة" },
+                        color = HomeMuted,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            HomeHeaderLogo()
+        }
+    }
+}
+
+@Composable
+private fun HomeHeaderAction(symbol: String, onClick: () -> Unit) {
+    Column(
+        Modifier.clip(CircleShape)
+            .background(HomeCream)
+            .border(1.dp, HomeGold, CircleShape)
+            .clickable(onClick = onClick)
+            .padding(9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(symbol, color = HomeGreen, fontSize = 23.sp)
+    }
+}
+
+@Composable
+private fun HomeHeaderLogo() {
+    Box(
+        Modifier.size(48.dp).clip(CircleShape)
+            .background(HomeCream)
+            .border(1.dp, HomeGold, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("۞", color = HomeGreen, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun HomeSectionTitle(title: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text("❧", color = HomeGold, fontSize = 22.sp)
+        Box(
+            Modifier.clip(RoundedCornerShape(30.dp))
+                .background(HomeGreen)
+                .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
+                .padding(horizontal = 22.dp, vertical = 7.dp)
+        ) {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Text("❧", color = HomeGold, fontSize = 22.sp)
+    }
+}
+
+@Composable
+private fun HomeStatusCard(
+    icon: String,
+    title: String,
+    status: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.height(104.dp).clickable(onClick = onClick)
+            .border(1.dp, HomeGold, RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = HomeCream)
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(icon, fontSize = 21.sp)
+            Text(title, color = HomeGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text(status, color = HomeMuted, fontSize = 10.sp, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun HomeFeatureCard(
+    icon: String,
+    title: String,
+    subtitle: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.height(112.dp).clickable(onClick = onClick)
+            .border(1.dp, HomeGold, RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = HomeCream)
+    ) {
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(icon, fontSize = 25.sp)
+            Text(
+                title,
+                color = HomeGreen,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 15.sp
+            )
+            Text(subtitle, color = HomeMuted, fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun MascotIllustration() {
+    Canvas(Modifier.size(70.dp)) {
+        val w = size.width
+        val h = size.height
+        drawCircle(Color(0xFFF1E4C8), radius = w * 0.48f)
+        drawRoundRect(
+            color = Color(0xFF416B4C),
+            topLeft = Offset(w * 0.23f, h * 0.54f),
+            size = Size(w * 0.54f, h * 0.40f),
+            cornerRadius = CornerRadius(w * 0.15f)
+        )
+        drawCircle(Color(0xFFE9B989), radius = w * 0.22f, center = Offset(w * 0.50f, h * 0.38f))
+        drawRoundRect(
+            color = Color(0xFFFFFEF7),
+            topLeft = Offset(w * 0.29f, h * 0.16f),
+            size = Size(w * 0.42f, h * 0.15f),
+            cornerRadius = CornerRadius(w * 0.12f)
+        )
+        drawCircle(Color(0xFF24372A), radius = w * 0.018f, center = Offset(w * 0.42f, h * 0.39f))
+        drawCircle(Color(0xFF24372A), radius = w * 0.018f, center = Offset(w * 0.58f, h * 0.39f))
+        drawRoundRect(
+            color = Color(0xFFB78632),
+            topLeft = Offset(w * 0.32f, h * 0.65f),
+            size = Size(w * 0.36f, h * 0.20f),
+            cornerRadius = CornerRadius(w * 0.025f)
+        )
+        drawLine(
+            color = Color(0xFFFFF5D8),
+            start = Offset(w * 0.50f, h * 0.66f),
+            end = Offset(w * 0.50f, h * 0.84f),
+            strokeWidth = w * 0.015f
+        )
+    }
+}
+
 
 @Composable
 private fun QuickCard(title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
