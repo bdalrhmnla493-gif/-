@@ -406,7 +406,6 @@ fun RafiqApp() {
 }
 
 @Composable
-
 private fun HomePage(
     count: Int,
     savedSurah: Int,
@@ -429,186 +428,226 @@ private fun HomePage(
             kotlinx.coroutines.delay(60_000)
         }
     }
-    val dayOfYear = Calendar.getInstance().apply { timeInMillis = nowMillis }.get(Calendar.DAY_OF_YEAR)
+    val cairoCalendar = Calendar.getInstance(TimeZone.getTimeZone("Africa/Cairo"), Locale("ar", "EG")).apply {
+        timeInMillis = nowMillis
+    }
+    val dayOfYear = cairoCalendar.get(Calendar.DAY_OF_YEAR)
     val dailyDhikr = dhikrPhrases[(dayOfYear - 1) % dhikrPhrases.size]
-    val isFriday = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        .get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
+    val isFriday = cairoCalendar.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(13.dp)
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFFFF4DF),
+                    Color(0xFFFFF9EF),
+                    Color(0xFFF4E7CC)
+                )
+            )
+        )
     ) {
-        item {
-            HomeHeader(
-                locationName = locationName,
-                weather = weather,
-                onNotifications = { onFeature("الإشعارات") }
-            )
-        }
-        item {
-            PrayerSummaryCard(
-                locationName = locationName,
-                prayerTimes = prayerTimes,
-                loading = prayerLoading,
-                errorMessage = prayerError,
-                onOpenPrayer = onOpenPrayer
-            )
-        }
-        item {
-            HomeSectionTitle("ذكر اليوم")
-            Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, HomeGold, RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = HomeCream)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    MascotIllustration()
-                    Column(
-                        Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                HomeHeader(
+                    locationName = locationName,
+                    weather = weather,
+                    onNotifications = { onFeature("الإشعارات") }
+                )
+            }
+            item {
+                PrayerSummaryCard(
+                    locationName = locationName,
+                    prayerTimes = prayerTimes,
+                    loading = prayerLoading,
+                    errorMessage = prayerError,
+                    onOpenPrayer = onOpenPrayer
+                )
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    HomeSectionTitle("ذكر اليوم")
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                            .border(1.dp, HomeGold, RoundedCornerShape(24.dp)),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                        colors = CardDefaults.cardColors(containerColor = HomeCream)
                     ) {
-                        Text(
-                            dailyDhikr,
-                            color = HomeGreen,
-                            fontSize = 21.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            "عبارة تسبيح عامة من القائمة المحلية — وليست معروضة كحديث أو ذكر مُخرَّج",
-                            color = HomeMuted,
-                            fontSize = 10.sp,
-                            textAlign = TextAlign.Center,
-                            lineHeight = 15.sp
-                        )
-                        TextButton(onClick = onOpenAdhkar) {
-                            Text("افتح الأذكار", color = HomeGreen)
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MascotIllustration()
+                            Column(
+                                Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Text(
+                                    dailyDhikr,
+                                    color = HomeGreen,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 32.sp
+                                )
+                                Text(
+                                    "ذكر عام من القائمة المحلية، دون نسبته إلى حديث",
+                                    color = HomeMuted,
+                                    fontSize = 10.sp,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 14.sp
+                                )
+                                Text(
+                                    "عدد التكرار حسب هدفك الشخصي",
+                                    color = HomeGreen,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                TextButton(onClick = onOpenAdhkar) {
+                                    Text("افتح الأذكار", color = HomeGreen)
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-        item {
-            HomeSectionTitle("الاستمرار والإنجازات")
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HomeStatusCard("🔥", "سلسلة الاستمرار", "قيد التجهيز", Modifier.weight(1f)) {
-                    onFeature("سلسلة الاستمرار")
-                }
-                HomeStatusCard("🏆", "إنجازاتي", "غير متاحة بعد", Modifier.weight(1f)) {
-                    onFeature("الإنجازات")
-                }
-                HomeStatusCard("🪙", "نقاطي", "غير مفعّلة", Modifier.weight(1f)) {
-                    onFeature("النقاط")
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    HomeSectionTitle("رحلتك وإنجازاتك")
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        HomeStatusCard(
+                            "🔥", "سلسلة الاستمرار", "غير مسجلة بعد",
+                            Modifier.weight(1f)
+                        ) { onFeature("سلسلة الاستمرار") }
+                        HomeStatusCard(
+                            "🏆", "إنجازاتي", "لا توجد بيانات بعد",
+                            Modifier.weight(1f)
+                        ) { onFeature("الإنجازات") }
+                        HomeStatusCard(
+                            "🪙", "نقاطي", "غير مفعّلة",
+                            Modifier.weight(1f)
+                        ) { onFeature("النقاط") }
+                    }
                 }
             }
-        }
-        item {
-            HomeSectionTitle("المميزات السريعة")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeFeatureCard("🎧", "مشغل القرآن", "قريبًا", Modifier.weight(1f)) {
-                        onFeature("مشغل القرآن")
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    HomeSectionTitle("المميزات السريعة")
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            HomeFeatureCard("🎧", "مشغل القرآن", "غير متاح بعد", Modifier.weight(1f)) {
+                                onFeature("مشغل القرآن")
+                            }
+                            HomeFeatureCard("📖", "ختمتي ورحلتي", "غير متاح بعد", Modifier.weight(1f)) {
+                                onFeature("ختمتي ورحلتي")
+                            }
+                            HomeFeatureCard("🧭", "القبلة", "غير متاحة بعد", Modifier.weight(1f)) {
+                                onFeature("القبلة")
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            HomeFeatureCard("🌿", "تدبر آية", "غير متاح بعد", Modifier.weight(1f)) {
+                                onFeature("تدبر آية")
+                            }
+                            HomeFeatureCard(
+                                "📿", "السبحة الذكية", "$count تسبيحة محفوظة",
+                                Modifier.weight(1f), onOpenTasbeeh
+                            )
+                        }
                     }
-                    HomeFeatureCard("📖", "ختمتي ورحلتي", "قريبًا", Modifier.weight(1f)) {
-                        onFeature("ختمتي ورحلتي")
-                    }
-                    HomeFeatureCard("🧭", "القبلة", "قريبًا", Modifier.weight(1f)) {
-                        onFeature("القبلة")
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HomeFeatureCard("🌿", "تدبر آية", "قريبًا", Modifier.weight(1f)) {
-                        onFeature("تدبر آية")
-                    }
-                    HomeFeatureCard("📿", "السبحة الذكية", "${count} تسبيحة محفوظة", Modifier.weight(1f), onOpenTasbeeh)
                 }
             }
-        }
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenQuran)
-                    .border(1.dp, HomeGold, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = HomeCream)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenQuran)
+                        .border(1.dp, HomeGold, RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    colors = CardDefaults.cardColors(containerColor = HomeCream)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("متابعة القراءة", color = HomeGreen, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("متابعة القراءة", color = HomeGreen, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (savedSurah in 1..114) {
+                                    "آخر موضع محفوظ: السورة $savedSurah • الآية $savedAyah"
+                                } else {
+                                    "لم يتم حفظ موضع قراءة بعد"
+                                },
+                                color = HomeMuted,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                         Text(
-                            if (savedSurah in 1..114) {
-                                "آخر موضع محفوظ: السورة ${savedSurah} • الآية ${savedAyah}"
-                            } else {
-                                "لم يتم حفظ موضع قراءة بعد"
-                            },
-                            color = HomeMuted,
-                            style = MaterialTheme.typography.bodySmall
+                            if (savedSurah in 1..114) "استكمل القراءة  ←" else "افتح المصحف  ←",
+                            color = HomeGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    HomeSectionTitle("محتوى مميز يوميًا")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        HomeFeatureCard("🌙", "أذكار النوم", "غير متاحة بعد", Modifier.weight(1f)) {
+                            onFeature("أذكار النوم")
+                        }
+                        HomeFeatureCard("✨", "قيام الليل", "غير متاح بعد", Modifier.weight(1f)) {
+                            onFeature("قيام الليل")
+                        }
+                        HomeFeatureCard(
+                            "🕌",
+                            "أذكار الجمعة",
+                            if (isFriday) "اليوم الجمعة" else "غير متاحة بعد",
+                            Modifier.weight(1f)
+                        ) {
+                            onFeature("أذكار الجمعة")
+                        }
+                    }
+                }
+            }
+            item {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(Color(0xFFEAF0E8))
+                            .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("✓", color = HomeGreen, fontWeight = FontWeight.Bold)
+                        Text(
+                            "  المصحف والسبحة الأساسية متاحان دون إنترنت",
+                            color = HomeGreen,
+                            style = MaterialTheme.typography.labelMedium,
+                            textAlign = TextAlign.Center
                         )
                     }
                     Text(
-                        if (savedSurah in 1..114) "استكمل القراءة  ←" else "افتح المصحف  ←",
-                        color = HomeGreen,
-                        fontWeight = FontWeight.Bold
+                        "مواقيت الصلاة والطقس يحتاجان اتصالًا لتحديث البيانات.",
+                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                        color = HomeMuted,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.labelSmall
                     )
                 }
             }
-        }
-        item {
-            HomeSectionTitle("محتوى مميز يوميًا")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HomeFeatureCard("🌙", "أذكار النوم", "قريبًا", Modifier.weight(1f)) {
-                    onFeature("أذكار النوم")
-                }
-                HomeFeatureCard("✨", "قيام الليل", "قريبًا", Modifier.weight(1f)) {
-                    onFeature("قيام الليل")
-                }
-                HomeFeatureCard(
-                    "🕌",
-                    "أذكار الجمعة",
-                    if (isFriday) "اليوم الجمعة" else "قريبًا",
-                    Modifier.weight(1f)
-                ) {
-                    onFeature("أذكار الجمعة")
-                }
-            }
-        }
-        item {
-            Row(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(Color(0xFFEAF0E8))
-                    .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("✓", color = HomeGreen, fontWeight = FontWeight.Bold)
-                Text(
-                    "  المصحف والسبحة الأساسية متاحان دون إنترنت",
-                    color = HomeGreen,
-                    style = MaterialTheme.typography.labelMedium,
-                    textAlign = TextAlign.Center
-                )
-            }
-            Text(
-                "مواقيت الصلاة تحتاج اتصالًا لتحديث بياناتها.",
-                Modifier.fillMaxWidth().padding(top = 3.dp),
-                color = HomeMuted,
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.labelSmall
-            )
         }
     }
 }
@@ -626,76 +665,157 @@ private fun HomeHeader(
 ) {
     Box(
         Modifier.fillMaxWidth()
-            .height(190.dp)
+            .height(208.dp)
             .clip(RoundedCornerShape(26.dp))
+            .border(1.dp, HomeGold, RoundedCornerShape(26.dp))
     ) {
         Canvas(Modifier.matchParentSize()) {
             val w = size.width
             val h = size.height
             drawRect(
                 brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFFFFE7BE), Color(0xFFFFF8E9), Color(0xFFE5D6B5))
+                    colors = listOf(Color(0xFFFFDDAA), Color(0xFFFFF1D8), Color(0xFFE9D6B2))
                 ),
                 size = size
             )
-            drawCircle(Color(0xFFFFF0C7), radius = h * 0.14f, center = Offset(w * 0.19f, h * 0.37f))
-            val baseY = h * 0.83f
-            drawRect(Color(0xFFD9C8A7), topLeft = Offset(0f, baseY), size = Size(w, h - baseY))
 
-            fun dome(centerX: Float, width: Float, height: Float, color: Color) {
+            val sun = Offset(w * 0.20f, h * 0.55f)
+            drawCircle(Color(0xFFFFF9DF).copy(alpha = 0.28f), h * 0.19f, sun)
+            drawCircle(Color(0xFFFFF7D2), h * 0.09f, sun)
+            drawCircle(Color(0xFFFFE9A9), h * 0.07f, Offset(w * 0.82f, h * 0.22f))
+
+            val baseY = h * 0.88f
+            drawRect(Color(0xFFD2BE98), topLeft = Offset(0f, baseY), size = Size(w, h - baseY))
+
+            fun dome(centerX: Float, width: Float, domeHeight: Float, color: Color) {
                 val path = Path().apply {
                     moveTo(centerX - width / 2f, baseY)
                     cubicTo(
-                        centerX - width * 0.48f, baseY - height * 0.68f,
-                        centerX - width * 0.22f, baseY - height,
-                        centerX, baseY - height
+                        centerX - width * 0.49f, baseY - domeHeight * 0.54f,
+                        centerX - width * 0.26f, baseY - domeHeight,
+                        centerX, baseY - domeHeight
                     )
                     cubicTo(
-                        centerX + width * 0.22f, baseY - height,
-                        centerX + width * 0.48f, baseY - height * 0.68f,
+                        centerX + width * 0.26f, baseY - domeHeight,
+                        centerX + width * 0.49f, baseY - domeHeight * 0.54f,
                         centerX + width / 2f, baseY
                     )
                     close()
                 }
                 drawPath(path, color)
+                drawLine(
+                    Color(0xFFEBD9B7),
+                    Offset(centerX - width * 0.36f, baseY - domeHeight * 0.22f),
+                    Offset(centerX + width * 0.36f, baseY - domeHeight * 0.22f),
+                    strokeWidth = w * 0.004f
+                )
+                drawLine(
+                    Color(0xFFB58C46),
+                    Offset(centerX, baseY - domeHeight),
+                    Offset(centerX, baseY - domeHeight - h * 0.055f),
+                    strokeWidth = w * 0.006f
+                )
+                drawCircle(
+                    Color(0xFFC69B4F),
+                    radius = w * 0.009f,
+                    center = Offset(centerX, baseY - domeHeight - h * 0.058f)
+                )
             }
 
             fun minaret(x: Float, height: Float, color: Color) {
+                val top = baseY - height
                 drawRoundRect(
                     color = color,
-                    topLeft = Offset(x - w * 0.012f, baseY - height),
-                    size = Size(w * 0.024f, height),
+                    topLeft = Offset(x - w * 0.014f, top + h * 0.07f),
+                    size = Size(w * 0.028f, height - h * 0.07f),
                     cornerRadius = CornerRadius(w * 0.01f)
                 )
-                drawCircle(color, radius = w * 0.025f, center = Offset(x, baseY - height))
-                drawCircle(Color(0xFFC49B4F), radius = w * 0.009f, center = Offset(x, baseY - height - w * 0.03f))
+                drawRoundRect(
+                    Color(0xFFE8D8B8),
+                    topLeft = Offset(x - w * 0.026f, top + h * 0.24f),
+                    size = Size(w * 0.052f, h * 0.016f),
+                    cornerRadius = CornerRadius(w * 0.008f)
+                )
+                drawRoundRect(
+                    Color(0xFFE8D8B8),
+                    topLeft = Offset(x - w * 0.022f, top + h * 0.46f),
+                    size = Size(w * 0.044f, h * 0.014f),
+                    cornerRadius = CornerRadius(w * 0.008f)
+                )
+                val cap = Path().apply {
+                    moveTo(x - w * 0.025f, top + h * 0.08f)
+                    lineTo(x, top)
+                    lineTo(x + w * 0.025f, top + h * 0.08f)
+                    close()
+                }
+                drawPath(cap, Color(0xFFB28A4B))
+                drawCircle(Color(0xFFC69B4F), w * 0.008f, Offset(x, top - h * 0.018f))
             }
 
-            val stone = Color(0xFFB9A887)
             drawRoundRect(
-                color = Color(0xFFD2C2A2),
-                topLeft = Offset(w * 0.22f, h * 0.61f),
-                size = Size(w * 0.56f, h * 0.24f),
+                Color(0xFFD8C8A8),
+                topLeft = Offset(w * 0.12f, h * 0.65f),
+                size = Size(w * 0.76f, h * 0.25f),
+                cornerRadius = CornerRadius(w * 0.018f)
+            )
+            dome(w * 0.50f, w * 0.27f, h * 0.40f, Color(0xFFBDAA87))
+            dome(w * 0.29f, w * 0.13f, h * 0.20f, Color(0xFFC7B591))
+            dome(w * 0.71f, w * 0.13f, h * 0.20f, Color(0xFFC7B591))
+            dome(w * 0.14f, w * 0.09f, h * 0.13f, Color(0xFFD0BF9F))
+            dome(w * 0.86f, w * 0.09f, h * 0.13f, Color(0xFFD0BF9F))
+
+            minaret(w * 0.19f, h * 0.66f, Color(0xFFB7A582))
+            minaret(w * 0.81f, h * 0.66f, Color(0xFFB7A582))
+            minaret(w * 0.36f, h * 0.47f, Color(0xFFC4B18E))
+            minaret(w * 0.64f, h * 0.47f, Color(0xFFC4B18E))
+
+            for (index in 0..8) {
+                val x = w * (0.19f + index * 0.0775f)
+                drawRoundRect(
+                    Color(0xFF8E8066),
+                    topLeft = Offset(x - w * 0.012f, h * 0.73f),
+                    size = Size(w * 0.024f, h * 0.105f),
+                    cornerRadius = CornerRadius(w * 0.012f)
+                )
+                drawCircle(Color(0xFFFFE6B7), radius = w * 0.004f, center = Offset(x, h * 0.76f))
+            }
+            drawRoundRect(
+                Color(0xFF9C8764),
+                topLeft = Offset(w * 0.46f, h * 0.75f),
+                size = Size(w * 0.08f, h * 0.13f),
                 cornerRadius = CornerRadius(w * 0.025f)
             )
-            dome(w * 0.50f, w * 0.23f, h * 0.31f, stone)
-            dome(w * 0.29f, w * 0.12f, h * 0.18f, Color(0xFFC8B796))
-            dome(w * 0.71f, w * 0.12f, h * 0.18f, Color(0xFFC8B796))
-            dome(w * 0.13f, w * 0.08f, h * 0.12f, Color(0xFFD0C09F))
-            dome(w * 0.87f, w * 0.08f, h * 0.12f, Color(0xFFD0C09F))
-            minaret(w * 0.23f, h * 0.55f, Color(0xFFB8A784))
-            minaret(w * 0.77f, h * 0.55f, Color(0xFFB8A784))
+            drawRoundRect(
+                Color(0xFFFFE8BD),
+                topLeft = Offset(w * 0.475f, h * 0.77f),
+                size = Size(w * 0.05f, h * 0.11f),
+                cornerRadius = CornerRadius(w * 0.02f)
+            )
+
+            for (index in 0..2) {
+                val x = w * (0.73f + index * 0.075f)
+                val y = h * (0.37f + (index % 2) * 0.035f)
+                drawLine(Color(0xFF74664E), Offset(x - w * 0.018f, y), Offset(x, y - h * 0.014f), w * 0.004f)
+                drawLine(Color(0xFF74664E), Offset(x, y - h * 0.014f), Offset(x + w * 0.018f, y), w * 0.004f)
+            }
+
+            for (index in 0..3) {
+                val y = h * (0.77f + index * 0.045f)
+                drawLine(Color(0xFF75824D), Offset(w * 0.02f, y + h * 0.05f), Offset(w * 0.11f, y - h * 0.04f), w * 0.009f)
+                drawCircle(Color(0xFF77864D), w * 0.022f, Offset(w * (0.025f + index * 0.012f), y))
+                drawCircle(Color(0xFF8B995A), w * 0.018f, Offset(w * (0.105f - index * 0.006f), y - h * 0.035f))
+                drawLine(Color(0xFF75824D), Offset(w * 0.98f, y + h * 0.05f), Offset(w * 0.89f, y - h * 0.04f), w * 0.009f)
+                drawCircle(Color(0xFF77864D), w * 0.022f, Offset(w * (0.975f - index * 0.012f), y))
+                drawCircle(Color(0xFF8B995A), w * 0.018f, Offset(w * (0.895f + index * 0.006f), y - h * 0.035f))
+            }
         }
 
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            HomeHeaderAction(
-                symbol = "🔔",
-                onClick = onNotifications
-            )
+            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
             Column(
                 Modifier.weight(1f).padding(horizontal = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -704,7 +824,7 @@ private fun HomeHeader(
                 Text(
                     "رفيق القرآن",
                     color = HomeGreen,
-                    fontSize = 27.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
                 )
@@ -712,14 +832,15 @@ private fun HomeHeader(
                     "نور في قلبك .. وطمأنينة في حياتك",
                     color = HomeGreen,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
                 if (weather != null) {
                     Text(
                         "${weather.temperatureCelsius.toInt()}° م • ${weather.description}",
                         color = HomeGreen,
-                        fontSize = 10.sp
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 } else {
                     Text(
@@ -737,13 +858,13 @@ private fun HomeHeader(
 
 @Composable
 private fun HomeHeaderAction(symbol: String, onClick: () -> Unit) {
-    Column(
+    Box(
         Modifier.clip(CircleShape)
             .background(HomeCream)
-            .border(1.dp, HomeGold, CircleShape)
+            .border(1.2.dp, HomeGold, CircleShape)
             .clickable(onClick = onClick)
             .padding(9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
         Text(symbol, color = HomeGreen, fontSize = 23.sp)
     }
@@ -752,32 +873,74 @@ private fun HomeHeaderAction(symbol: String, onClick: () -> Unit) {
 @Composable
 private fun HomeHeaderLogo() {
     Box(
-        Modifier.size(48.dp).clip(CircleShape)
+        Modifier.size(54.dp).clip(CircleShape)
             .background(HomeCream)
-            .border(1.dp, HomeGold, CircleShape),
+            .border(1.4.dp, HomeGold, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text("۞", color = HomeGreen, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Canvas(Modifier.size(38.dp)) {
+            val w = size.width
+            val h = size.height
+            val base = h * 0.86f
+            drawRoundRect(
+                Color(0xFF315A40),
+                topLeft = Offset(w * 0.12f, h * 0.50f),
+                size = Size(w * 0.76f, h * 0.38f),
+                cornerRadius = CornerRadius(w * 0.06f)
+            )
+            val dome = Path().apply {
+                moveTo(w * 0.28f, base)
+                cubicTo(w * 0.28f, h * 0.35f, w * 0.40f, h * 0.18f, w * 0.50f, h * 0.18f)
+                cubicTo(w * 0.60f, h * 0.18f, w * 0.72f, h * 0.35f, w * 0.72f, base)
+                close()
+            }
+            drawPath(dome, Color(0xFFB88B3E))
+            drawRoundRect(
+                Color(0xFF315A40),
+                topLeft = Offset(w * 0.08f, h * 0.31f),
+                size = Size(w * 0.09f, h * 0.57f),
+                cornerRadius = CornerRadius(w * 0.025f)
+            )
+            drawRoundRect(
+                Color(0xFF315A40),
+                topLeft = Offset(w * 0.83f, h * 0.31f),
+                size = Size(w * 0.09f, h * 0.57f),
+                cornerRadius = CornerRadius(w * 0.025f)
+            )
+            drawCircle(Color(0xFFD6B66C), w * 0.025f, Offset(w * 0.125f, h * 0.28f))
+            drawCircle(Color(0xFFD6B66C), w * 0.025f, Offset(w * 0.875f, h * 0.28f))
+            drawRoundRect(
+                Color(0xFFFFE8B9),
+                topLeft = Offset(w * 0.45f, h * 0.62f),
+                size = Size(w * 0.10f, h * 0.25f),
+                cornerRadius = CornerRadius(w * 0.025f)
+            )
+            drawLine(Color(0xFFFFE8B9), Offset(w * 0.50f, h * 0.18f), Offset(w * 0.50f, h * 0.06f), w * 0.025f)
+        }
     }
 }
 
 @Composable
 private fun HomeSectionTitle(title: String) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        Modifier.fillMaxWidth().padding(vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        Text("❧", color = HomeGold, fontSize = 22.sp)
+        Text("❧", color = HomeGold, fontSize = 21.sp)
         Box(
             Modifier.clip(RoundedCornerShape(30.dp))
-                .background(HomeGreen)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF234E36), HomeGreen, Color(0xFF234E36))
+                    )
+                )
                 .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
-                .padding(horizontal = 22.dp, vertical = 7.dp)
+                .padding(horizontal = 22.dp, vertical = 6.dp)
         ) {
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
-        Text("❧", color = HomeGold, fontSize = 22.sp)
+        Text("❧", color = HomeGold, fontSize = 21.sp)
     }
 }
 
@@ -790,19 +953,33 @@ private fun HomeStatusCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.height(104.dp).clickable(onClick = onClick)
-            .border(1.dp, HomeGold, RoundedCornerShape(18.dp)),
-        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.height(100.dp).clickable(onClick = onClick)
+            .border(1.dp, HomeGold, RoundedCornerShape(17.dp)),
+        shape = RoundedCornerShape(17.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCream)
     ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(icon, fontSize = 21.sp)
-            Text(title, color = HomeGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Text(status, color = HomeMuted, fontSize = 10.sp, textAlign = TextAlign.Center)
+            Text(icon, fontSize = 22.sp)
+            Text(
+                title,
+                color = HomeGreen,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 13.sp
+            )
+            Text(
+                status,
+                color = HomeMuted,
+                fontSize = 9.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 12.sp
+            )
         }
     }
 }
@@ -819,63 +996,89 @@ private fun HomeFeatureCard(
         modifier = modifier.height(112.dp).clickable(onClick = onClick)
             .border(1.dp, HomeGold, RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCream)
     ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(icon, fontSize = 25.sp)
+            Text(icon, fontSize = 24.sp)
             Text(
                 title,
                 color = HomeGreen,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = 15.sp
+                lineHeight = 14.sp,
+                maxLines = 2
             )
-            Text(subtitle, color = HomeMuted, fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 1)
+            Text(
+                subtitle,
+                color = HomeMuted,
+                fontSize = 8.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
         }
     }
 }
 
 @Composable
 private fun MascotIllustration() {
-    Canvas(Modifier.size(70.dp)) {
+    Canvas(Modifier.size(76.dp)) {
         val w = size.width
         val h = size.height
-        drawCircle(Color(0xFFF1E4C8), radius = w * 0.48f)
+        drawCircle(Color(0xFFF4E8CF), radius = w * 0.48f)
+
+        val robe = Path().apply {
+            moveTo(w * 0.12f, h * 0.96f)
+            cubicTo(w * 0.17f, h * 0.66f, w * 0.34f, h * 0.57f, w * 0.50f, h * 0.58f)
+            cubicTo(w * 0.68f, h * 0.57f, w * 0.84f, h * 0.68f, w * 0.89f, h * 0.96f)
+            close()
+        }
+        drawPath(robe, Color(0xFF416B4C))
+
+        drawCircle(Color(0xFFE9B989), radius = w * 0.235f, center = Offset(w * 0.50f, h * 0.39f))
+        drawCircle(Color(0xFFFFD7B2), radius = w * 0.19f, center = Offset(w * 0.50f, h * 0.40f))
+        drawCircle(Color(0xFF49372B), radius = w * 0.023f, center = Offset(w * 0.42f, h * 0.40f))
+        drawCircle(Color(0xFF49372B), radius = w * 0.023f, center = Offset(w * 0.58f, h * 0.40f))
+        drawCircle(Color(0xFFE79A86), radius = w * 0.025f, center = Offset(w * 0.37f, h * 0.47f))
+        drawCircle(Color(0xFFE79A86), radius = w * 0.025f, center = Offset(w * 0.63f, h * 0.47f))
+        drawLine(Color(0xFF9A5F4E), Offset(w * 0.46f, h * 0.51f), Offset(w * 0.54f, h * 0.51f), w * 0.014f)
+
         drawRoundRect(
-            color = Color(0xFF416B4C),
-            topLeft = Offset(w * 0.23f, h * 0.54f),
-            size = Size(w * 0.54f, h * 0.40f),
-            cornerRadius = CornerRadius(w * 0.15f)
+            Color(0xFFFFFEF7),
+            topLeft = Offset(w * 0.29f, h * 0.14f),
+            size = Size(w * 0.42f, h * 0.13f),
+            cornerRadius = CornerRadius(w * 0.09f)
         )
-        drawCircle(Color(0xFFE9B989), radius = w * 0.22f, center = Offset(w * 0.50f, h * 0.38f))
-        drawRoundRect(
-            color = Color(0xFFFFFEF7),
-            topLeft = Offset(w * 0.29f, h * 0.16f),
-            size = Size(w * 0.42f, h * 0.15f),
-            cornerRadius = CornerRadius(w * 0.12f)
-        )
-        drawCircle(Color(0xFF24372A), radius = w * 0.018f, center = Offset(w * 0.42f, h * 0.39f))
-        drawCircle(Color(0xFF24372A), radius = w * 0.018f, center = Offset(w * 0.58f, h * 0.39f))
-        drawRoundRect(
-            color = Color(0xFFB78632),
-            topLeft = Offset(w * 0.32f, h * 0.65f),
-            size = Size(w * 0.36f, h * 0.20f),
-            cornerRadius = CornerRadius(w * 0.025f)
-        )
-        drawLine(
-            color = Color(0xFFFFF5D8),
-            start = Offset(w * 0.50f, h * 0.66f),
-            end = Offset(w * 0.50f, h * 0.84f),
-            strokeWidth = w * 0.015f
-        )
+        drawLine(Color(0xFFDCCDAF), Offset(w * 0.33f, h * 0.24f), Offset(w * 0.67f, h * 0.24f), w * 0.012f)
+
+        val leftPage = Path().apply {
+            moveTo(w * 0.24f, h * 0.69f)
+            quadraticTo(w * 0.38f, h * 0.62f, w * 0.49f, h * 0.72f)
+            lineTo(w * 0.49f, h * 0.91f)
+            quadraticTo(w * 0.35f, h * 0.83f, w * 0.24f, h * 0.86f)
+            close()
+        }
+        val rightPage = Path().apply {
+            moveTo(w * 0.51f, h * 0.72f)
+            quadraticTo(w * 0.63f, h * 0.62f, w * 0.76f, h * 0.69f)
+            lineTo(w * 0.76f, h * 0.86f)
+            quadraticTo(w * 0.63f, h * 0.83f, w * 0.51f, h * 0.91f)
+            close()
+        }
+        drawPath(leftPage, Color(0xFFFFF0CE))
+        drawPath(rightPage, Color(0xFFFFF8E8))
+        drawLine(Color(0xFFB88B3E), Offset(w * 0.50f, h * 0.71f), Offset(w * 0.50f, h * 0.92f), w * 0.018f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.30f, h * 0.74f), Offset(w * 0.43f, h * 0.77f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.77f), Offset(w * 0.70f, h * 0.74f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.30f, h * 0.79f), Offset(w * 0.43f, h * 0.82f), w * 0.012f)
+        drawLine(Color(0xFFD9B86F), Offset(w * 0.57f, h * 0.82f), Offset(w * 0.70f, h * 0.79f), w * 0.012f)
     }
 }
-
 
 @Composable
 private fun QuickCard(title: String, subtitle: String, modifier: Modifier, onClick: () -> Unit) {
