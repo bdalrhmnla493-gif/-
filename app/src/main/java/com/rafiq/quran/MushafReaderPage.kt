@@ -1,5 +1,6 @@
 package com.rafiq.quran
 
+import android.content.res.Configuration
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -51,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,11 +75,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rafiq.quran.data.MushafPageMetadata
@@ -125,6 +130,8 @@ fun MushafReaderPage(
     onSavePosition: (Int, Int) -> Unit
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val scope = rememberCoroutineScope()
     val savedBookmarkKeys by context.mushafBookmarkStore.data
         .map { preferences -> preferences[MushafBookmarkedPagesKey] ?: emptySet() }
@@ -189,7 +196,11 @@ fun MushafReaderPage(
     var pageZoom by rememberSaveable { mutableFloatStateOf(1f) }
     var pageOffset by remember { mutableStateOf(Offset.Zero) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
+    var showLandscapeSpread by rememberSaveable { mutableStateOf(true) }
     var pageBitmap by remember(pageNumber) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var pairedPageBitmap by remember(pageNumber, isLandscape, showLandscapeSpread) {
+        mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
+    }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
     var showSurahIndex by rememberSaveable { mutableStateOf(false) }
@@ -229,7 +240,19 @@ fun MushafReaderPage(
         pageOffset = Offset.Zero
     }
 
-    LaunchedEffect(context, pageNumber) {
+    val pairedPageNumber = remember(pageNumber, pageMap, isLandscape, showLandscapeSpread) {
+        if (!isLandscape || !showLandscapeSpread || pageNumber == 1) {
+            null
+        } else if (pageNumber == pageMap.pages.size) {
+            pageNumber - 1
+        } else if (pageNumber % 2 == 0) {
+            pageNumber + 1
+        } else {
+            pageNumber - 1
+        }?.takeIf { it in 1..pageMap.pages.size }
+    }
+
+    LaunchedEffect(context, pageNumber, pairedPageNumber) {
         pageBitmap = withContext(Dispatchers.IO) {
             try {
                 context.assets.open("mushaf-pages/$pageNumber.png").use { stream ->
@@ -237,6 +260,17 @@ fun MushafReaderPage(
                 }
             } catch (_: Exception) {
                 null
+            }
+        }
+        pairedPageBitmap = pairedPageNumber?.let { pairedNumber ->
+            withContext(Dispatchers.IO) {
+                try {
+                    context.assets.open("mushaf-pages/$pairedNumber.png").use { stream ->
+                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                    }
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
     }
@@ -314,7 +348,8 @@ fun MushafReaderPage(
     ) {
         if (autoFlipSeconds > 0 && !isReaderDialogOpen) {
             delay(autoFlipSeconds * 1_000L)
-            val targetPage = pageNumber + if (autoFlipDirection < 0) -1 else 1
+            val step = if (isLandscape && showLandscapeSpread) 2 else 1
+            val targetPage = pageNumber + (if (autoFlipDirection < 0) -1 else 1) * step
             if (targetPage in 1..pageMap.pages.size) {
                 moveToPage(targetPage)
             } else {
@@ -452,8 +487,12 @@ fun MushafReaderPage(
 
                         if (!usedMultiplePointers && startingZoom <= 1f && pageZoom <= 1f) {
                             when {
-                                totalHorizontalPan < -55f -> moveToPage(pageNumber + 1)
-                                totalHorizontalPan > 55f -> moveToPage(pageNumber - 1)
+                                totalHorizontalPan < -55f -> moveToPage(
+                                    pageNumber + if (isLandscape && showLandscapeSpread) 2 else 1
+                                )
+                                totalHorizontalPan > 55f -> moveToPage(
+                                    pageNumber - if (isLandscape && showLandscapeSpread) 2 else 1
+                                )
                             }
                         }
                     }
@@ -476,12 +515,57 @@ fun MushafReaderPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (pageBitmap != null) {
-                    Image(
-                        bitmap = pageBitmap!!,
-                        contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentScale = ContentScale.Fit
-                    )
+                    val rightPageNumber = when {
+                        pageNumber == pageMap.pages.size -> pageNumber - 1
+                        pageNumber > 1 && pageNumber % 2 == 0 -> pageNumber + 1
+                        else -> pageNumber
+                    }
+                    val leftPageNumber = when {
+                        pageNumber == 1 -> null
+                        pageNumber == pageMap.pages.size -> pageNumber
+                        pageNumber % 2 == 0 -> pageNumber
+                        else -> pageNumber - 1
+                    }
+                    val rightPageBitmap = if (pageNumber == rightPageNumber) {
+                        pageBitmap
+                    } else {
+                        pairedPageBitmap
+                    }
+                    val leftPageBitmap = if (leftPageNumber == pageNumber) {
+                        pageBitmap
+                    } else {
+                        pairedPageBitmap
+                    }
+                    if (isLandscape && showLandscapeSpread && leftPageNumber != null &&
+                        rightPageBitmap != null && leftPageBitmap != null
+                    ) {
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                            Row(
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Image(
+                                    bitmap = rightPageBitmap,
+                                    contentDescription = "صفحة المصحف رقم ${toArabicDigits(rightPageNumber)}",
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    contentScale = ContentScale.Fit
+                                )
+                                Image(
+                                    bitmap = leftPageBitmap,
+                                    contentDescription = "صفحة المصحف رقم ${toArabicDigits(leftPageNumber)}",
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                        }
+                    } else {
+                        Image(
+                            bitmap = pageBitmap!!,
+                            contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 } else {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -521,16 +605,27 @@ fun MushafReaderPage(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = { moveToPage(pageNumber - 1) }, enabled = pageNumber > 1) {
+            val navigationStep = if (isLandscape && showLandscapeSpread) 2 else 1
+            TextButton(
+                onClick = { moveToPage(pageNumber - navigationStep) },
+                enabled = pageNumber > navigationStep
+            ) {
                 Text("الصفحة السابقة")
             }
             Text(
-                "صفحة ${toArabicDigits(pageNumber)} من ٦٠٤",
+                if (isLandscape && showLandscapeSpread) {
+                    "صفحتا ${toArabicDigits(pageNumber)} وما يجاورها • من ٦٠٤"
+                } else {
+                    "صفحة ${toArabicDigits(pageNumber)} من ٦٠٤"
+                },
                 color = MushafGreen,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.sp
             )
-            TextButton(onClick = { moveToPage(pageNumber + 1) }, enabled = pageNumber < pageMap.pages.size) {
+            TextButton(
+                onClick = { moveToPage(pageNumber + navigationStep) },
+                enabled = pageNumber < pageMap.pages.size
+            ) {
                 Text("الصفحة التالية")
             }
         }
@@ -563,6 +658,16 @@ fun MushafReaderPage(
                         showReaderMenu = false
                         showPageIndex = true
                     }) { Text("فهرس الصفحات") }
+                    if (isLandscape) {
+                        TextButton(onClick = {
+                            showLandscapeSpread = !showLandscapeSpread
+                            showReaderMenu = false
+                        }) {
+                            Text(
+                                if (showLandscapeSpread) "عرض صفحة واحدة" else "عرض صفحتين متجاورتين"
+                            )
+                        }
+                    }
                     TextButton(onClick = {
                         onReaderFullScreenChange(!readerFullScreen)
                         showReaderMenu = false
