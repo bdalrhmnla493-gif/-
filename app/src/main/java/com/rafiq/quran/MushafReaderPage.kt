@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
@@ -89,6 +90,8 @@ import com.rafiq.quran.data.MushafPageMetadata
 import com.rafiq.quran.data.MushafPageRepository
 import com.rafiq.quran.data.MushafBookmarkRepository
 import com.rafiq.quran.data.QuranFavoriteRepository
+import com.rafiq.quran.data.QuranFavoriteNote
+import com.rafiq.quran.data.QuranFavoriteNoteRepository
 import com.rafiq.quran.data.QuranAyahReference
 import com.rafiq.quran.data.QuranAyahBookmark
 import com.rafiq.quran.data.QuranAyahBookmarkRepository
@@ -109,6 +112,7 @@ import java.util.UUID
 private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
 private val MushafBookmarkedPagesKey = stringSetPreferencesKey("bookmarked_pages")
 private val FavoriteAyahsKey = stringSetPreferencesKey("favorite_ayahs")
+private val FavoriteAyahNotesKey = stringSetPreferencesKey("favorite_ayah_notes")
 private val AyahBookmarksKey = stringSetPreferencesKey("ayah_bookmarks")
 private val AutoFlipSecondsKey = intPreferencesKey("auto_flip_seconds")
 private val AutoFlipDirectionKey = intPreferencesKey("auto_flip_direction")
@@ -144,6 +148,13 @@ fun MushafReaderPage(
         .collectAsState(initial = emptySet())
     val favoriteAyahs = remember(savedFavoriteKeys) {
         QuranFavoriteRepository.decode(savedFavoriteKeys)
+    }
+
+    val savedFavoriteNoteKeys by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[FavoriteAyahNotesKey] ?: emptySet() }
+        .collectAsState(initial = emptySet())
+    val favoriteNotes = remember(savedFavoriteNoteKeys) {
+        QuranFavoriteNoteRepository.decode(savedFavoriteNoteKeys)
     }
 
     val savedAyahBookmarkKeys by context.mushafBookmarkStore.data
@@ -213,6 +224,11 @@ fun MushafReaderPage(
     var ayahBookmarkName by rememberSaveable { mutableStateOf("") }
     var ayahBookmarkColorHex by rememberSaveable { mutableStateOf("#B99A60") }
     var showFavoritesDialog by rememberSaveable { mutableStateOf(false) }
+    var showFavoriteNoteDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingFavoriteNoteSurah by rememberSaveable { mutableIntStateOf(1) }
+    var pendingFavoriteNoteAyah by rememberSaveable { mutableIntStateOf(1) }
+    var favoriteNoteText by rememberSaveable { mutableStateOf("") }
+    var favoriteNoteColorHex by rememberSaveable { mutableStateOf("#B99A60") }
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
     var autoFlipPauseToken by remember { mutableIntStateOf(0) }
@@ -321,11 +337,21 @@ fun MushafReaderPage(
     fun toggleFavorite(result: QuranSearchResult) {
         scope.launch {
             context.mushafBookmarkStore.edit { preferences ->
+                val currentKeys = preferences[FavoriteAyahsKey] ?: emptySet()
+                val referenceKey = "${result.surahNumber}:${result.ayahNumber}"
+                val willRemoveFavorite = referenceKey in currentKeys
                 preferences[FavoriteAyahsKey] = QuranFavoriteRepository.toggle(
-                    preferences[FavoriteAyahsKey] ?: emptySet(),
+                    currentKeys,
                     result.surahNumber,
                     result.ayahNumber
                 )
+                if (willRemoveFavorite) {
+                    preferences[FavoriteAyahNotesKey] = QuranFavoriteNoteRepository.remove(
+                        preferences[FavoriteAyahNotesKey] ?: emptySet(),
+                        result.surahNumber,
+                        result.ayahNumber
+                    )
+                }
             }
         }
     }
@@ -342,7 +368,7 @@ fun MushafReaderPage(
 
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
         showBookmarksDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
-        showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
+        showFavoritesDialog || showFavoriteNoteDialog || showSurahInfoDialog || showReaderMenu ||
         showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
 
     LaunchedEffect(
@@ -858,6 +884,74 @@ fun MushafReaderPage(
         )
     }
 
+    if (showFavoriteNoteDialog) {
+        AlertDialog(
+            onDismissRequest = { showFavoriteNoteDialog = false },
+            title = { Text("ملاحظة على الآية المفضلة") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${surahs.firstOrNull { it.number == pendingFavoriteNoteSurah }?.name.orEmpty()} • الآية ${toArabicDigits(pendingFavoriteNoteAyah)}"
+                    )
+                    OutlinedTextField(
+                        value = favoriteNoteText,
+                        onValueChange = { favoriteNoteText = it.take(500) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 6,
+                        label = { Text("ملاحظتك الشخصية") }
+                    )
+                    Text("لون الملاحظة")
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("#B99A60", "#2E7D5B", "#4776B8", "#9A5AA6", "#C66A43").forEach { colorHex ->
+                            TextButton(
+                                onClick = { favoriteNoteColorHex = colorHex },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    if (favoriteNoteColorHex == colorHex) "✓" else "●",
+                                    color = Color(android.graphics.Color.parseColor(colorHex))
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        context.mushafBookmarkStore.edit { preferences ->
+                            val current = preferences[FavoriteAyahNotesKey] ?: emptySet()
+                            preferences[FavoriteAyahNotesKey] =
+                                if (favoriteNoteText.isBlank()) {
+                                    QuranFavoriteNoteRepository.remove(
+                                        current,
+                                        pendingFavoriteNoteSurah,
+                                        pendingFavoriteNoteAyah
+                                    )
+                                } else {
+                                    QuranFavoriteNoteRepository.upsert(
+                                        current,
+                                        QuranFavoriteNote(
+                                            surahNumber = pendingFavoriteNoteSurah,
+                                            ayahNumber = pendingFavoriteNoteAyah,
+                                            note = favoriteNoteText.trim(),
+                                            colorHex = favoriteNoteColorHex,
+                                            updatedAtMillis = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+                        }
+                    }
+                    showFavoriteNoteDialog = false
+                }) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFavoriteNoteDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
     if (showFavoritesDialog) {
         AlertDialog(
             onDismissRequest = { showFavoritesDialog = false },
@@ -877,13 +971,25 @@ fun MushafReaderPage(
                             val resultJuz = MushafPageRepository.findJuzNumber(
                                 pageMap.juz, result.surahNumber, result.ayahNumber
                             )
+                            val savedNote = favoriteNotes.firstOrNull {
+                                it.surahNumber == result.surahNumber && it.ayahNumber == result.ayahNumber
+                            }
                             SearchResultRow(
                                 result = result,
                                 isFavorite = true,
                                 locationLabel = "صفحة ${toArabicDigits(resultPage)} • الجزء ${toArabicDigits(resultJuz)}",
+                                noteText = savedNote?.note.orEmpty(),
                                 onClick = {
                                     moveToAyah(result.surahNumber, result.ayahNumber)
                                     showFavoritesDialog = false
+                                },
+                                onNoteClick = {
+                                    pendingFavoriteNoteSurah = result.surahNumber
+                                    pendingFavoriteNoteAyah = result.ayahNumber
+                                    favoriteNoteText = savedNote?.note.orEmpty()
+                                    favoriteNoteColorHex = savedNote?.colorHex ?: "#B99A60"
+                                    showFavoritesDialog = false
+                                    showFavoriteNoteDialog = true
                                 },
                                 onFavoriteClick = { toggleFavorite(result) }
                             )
@@ -1426,7 +1532,9 @@ private fun SearchResultRow(
     result: QuranSearchResult,
     isFavorite: Boolean,
     locationLabel: String = "",
+    noteText: String = "",
     onClick: () -> Unit,
+    onNoteClick: () -> Unit = {},
     onFavoriteClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1454,6 +1562,19 @@ private fun SearchResultRow(
                     style = MaterialTheme.typography.labelSmall
                 )
             }
+            if (noteText.isNotBlank()) {
+                Text(
+                    noteText,
+                    color = MushafInk,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF1E8D5), RoundedCornerShape(6.dp))
+                        .padding(6.dp)
+                )
+            }
         }
         IconButton(
             onClick = {
@@ -1474,6 +1595,11 @@ private fun SearchResultRow(
             }
         ) {
             Icon(Icons.Filled.Share, contentDescription = "مشاركة الآية", tint = MushafGreen)
+        }
+        if (isFavorite) {
+            IconButton(onClick = onNoteClick) {
+                Icon(Icons.Filled.Edit, contentDescription = "إضافة أو تعديل ملاحظة", tint = MushafGreen)
+            }
         }
         IconButton(onClick = onFavoriteClick) {
             Icon(
