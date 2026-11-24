@@ -183,6 +183,9 @@ fun MushafReaderPage(
 
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
+    var explicitPositionForPage by remember(initialSurah, initialAyah) {
+        mutableStateOf(initialSurah.coerceIn(1, 114) to initialAyah.coerceAtLeast(1))
+    }
     var pageZoom by rememberSaveable { mutableFloatStateOf(1f) }
     var pageOffset by remember { mutableStateOf(Offset.Zero) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
@@ -246,12 +249,33 @@ fun MushafReaderPage(
 
     LaunchedEffect(pageNumber, currentBoundary.surah, currentBoundary.ayah, initialPageReady) {
         if (initialPageReady) {
-            onSavePosition(currentBoundary.surah, currentBoundary.ayah)
+            val explicitPosition = explicitPositionForPage
+            val explicitPage = explicitPosition?.let { (surahNumber, ayahNumber) ->
+                MushafPageRepository.findPageNumber(pageMap.pages, surahNumber, ayahNumber)
+            }
+            if (explicitPosition != null && explicitPage == pageNumber) {
+                onSavePosition(explicitPosition.first, explicitPosition.second)
+            } else {
+                onSavePosition(currentBoundary.surah, currentBoundary.ayah)
+            }
         }
     }
 
     fun moveToPage(target: Int) {
+        explicitPositionForPage = null
         pageNumber = target.coerceIn(1, pageMap.pages.size)
+    }
+
+    fun moveToAyah(surahNumber: Int, ayahNumber: Int) {
+        val targetSurah = surahNumber.coerceIn(1, 114)
+        val targetAyah = ayahNumber.coerceAtLeast(1)
+        explicitPositionForPage = targetSurah to targetAyah
+        pageNumber = MushafPageRepository.findPageNumber(
+            pageMap.pages,
+            targetSurah,
+            targetAyah
+        )
+        onSavePosition(targetSurah, targetAyah)
     }
 
     fun toggleFavorite(result: QuranSearchResult) {
@@ -724,7 +748,7 @@ fun MushafReaderPage(
                                 isFavorite = true,
                                 locationLabel = "صفحة ${toArabicDigits(resultPage)} • الجزء ${toArabicDigits(resultJuz)}",
                                 onClick = {
-                                    moveToPage(resultPage)
+                                    moveToAyah(result.surahNumber, result.ayahNumber)
                                     showFavoritesDialog = false
                                 },
                                 onFavoriteClick = { toggleFavorite(result) }
@@ -833,8 +857,7 @@ fun MushafReaderPage(
                                 }
                                 TextButton(
                                     onClick = {
-                                        moveToPage(startPage)
-                                        onSavePosition(surah.number, 1)
+                                        moveToAyah(surah.number, 1)
                                         showSurahIndex = false
                                         surahIndexQuery = ""
                                     },
@@ -884,11 +907,7 @@ fun MushafReaderPage(
                         val juzSurah = surahs.firstOrNull { it.number == juz.surah }
                         TextButton(
                             onClick = {
-                                moveToPage(
-                                    MushafPageRepository.findPageNumber(
-                                        pageMap.pages, juz.surah, juz.ayah
-                                    )
-                                )
+                                moveToAyah(juz.surah, juz.ayah)
                                 showJuzIndex = false
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -1045,12 +1064,7 @@ fun MushafReaderPage(
                             onClick = {
                                 val targetSurah = selectedPickerSurah ?: return@TextButton
                                 val targetAyah = validPickerAyah ?: return@TextButton
-                                moveToPage(
-                                    MushafPageRepository.findPageNumber(
-                                        pageMap.pages, targetSurah.number, targetAyah.number
-                                    )
-                                )
-                                onSavePosition(targetSurah.number, targetAyah.number)
+                                moveToAyah(targetSurah.number, targetAyah.number)
                                 showAyahPickerDialog = false
                             }
                         ) { Text("فتح الآية") }
@@ -1177,14 +1191,7 @@ fun MushafReaderPage(
                                 Column(modifier = Modifier.weight(1f)) {
                                     TextButton(
                                         onClick = {
-                                            moveToPage(
-                                                MushafPageRepository.findPageNumber(
-                                                    pageMap.pages,
-                                                    bookmark.surahNumber,
-                                                    bookmark.ayahNumber
-                                                )
-                                            )
-                                            onSavePosition(bookmark.surahNumber, bookmark.ayahNumber)
+                                            moveToAyah(bookmark.surahNumber, bookmark.ayahNumber)
                                             showAyahBookmarksDialog = false
                                         },
                                         modifier = Modifier.fillMaxWidth()
@@ -1261,7 +1268,7 @@ fun MushafReaderPage(
                                     isFavorite = QuranAyahReference(result.surahNumber, result.ayahNumber) in favoriteAyahs,
                                     locationLabel = "صفحة ${toArabicDigits(resultPage)} • الجزء ${toArabicDigits(resultJuz)}",
                                     onClick = {
-                                        moveToPage(resultPage)
+                                        moveToAyah(result.surahNumber, result.ayahNumber)
                                         showSearchDialog = false
                                         searchInput = ""
                                     },
