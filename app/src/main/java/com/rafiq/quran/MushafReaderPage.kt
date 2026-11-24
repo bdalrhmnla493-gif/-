@@ -117,6 +117,8 @@ fun MushafReaderPage(
     var pageBitmap by remember(pageNumber) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
+    var showSurahIndex by rememberSaveable { mutableStateOf(false) }
+    var showJuzIndex by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
@@ -414,18 +416,99 @@ fun MushafReaderPage(
         AlertDialog(
             onDismissRequest = { showReaderMenu = false },
             title = { Text("قائمة المصحف") },
-            text = { Text("اختر ما تريد فتحه.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showReaderMenu = false
-                    showPageDialog = true
-                }) { Text("الانتقال إلى صفحة") }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        showReaderMenu = false
+                        showSurahIndex = true
+                    }) { Text("فهرس السور") }
+                    TextButton(onClick = {
+                        showReaderMenu = false
+                        showJuzIndex = true
+                    }) { Text("فهرس الأجزاء") }
+                    TextButton(onClick = {
+                        showReaderMenu = false
+                        showPageDialog = true
+                    }) { Text("الانتقال إلى صفحة") }
+                    TextButton(onClick = {
+                        showReaderMenu = false
+                        onBack()
+                    }) { Text("العودة لقائمة القرآن") }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    showReaderMenu = false
-                    onBack()
-                }) { Text("قائمة السور") }
+            confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showSurahIndex) {
+        AlertDialog(
+            onDismissRequest = { showSurahIndex = false },
+            title = { Text("فهرس السور") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 480.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(surahs, key = { it.number }) { surah ->
+                        TextButton(
+                            onClick = {
+                                moveToPage(
+                                    MushafPageRepository.findPageNumber(
+                                        pageMap.pages, surah.number, 1
+                                    )
+                                )
+                                showSurahIndex = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "${toArabicDigits(surah.number)}. ${surah.name}  •  ${toArabicDigits(surah.ayahs.size)} آية",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSurahIndex = false }) { Text("إغلاق") }
+            }
+        )
+    }
+
+    if (showJuzIndex) {
+        AlertDialog(
+            onDismissRequest = { showJuzIndex = false },
+            title = { Text("فهرس الأجزاء") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 440.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(pageMap.juz, key = { it.index }) { juz ->
+                        val juzSurah = surahs.firstOrNull { it.number == juz.surah }
+                        TextButton(
+                            onClick = {
+                                moveToPage(
+                                    MushafPageRepository.findPageNumber(
+                                        pageMap.pages, juz.surah, juz.ayah
+                                    )
+                                )
+                                showJuzIndex = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "الجزء ${toArabicDigits(juz.index)}  •  ${juzSurah?.name.orEmpty()} ${toArabicDigits(juz.ayah)}",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showJuzIndex = false }) { Text("إغلاق") }
             }
         )
     }
