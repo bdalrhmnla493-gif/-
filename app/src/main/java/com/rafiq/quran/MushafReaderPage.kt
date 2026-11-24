@@ -81,6 +81,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -153,6 +154,8 @@ fun MushafReaderPage(
     var showJuzIndex by rememberSaveable { mutableStateOf(false) }
     var showBookmarksDialog by rememberSaveable { mutableStateOf(false) }
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
+    var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
+    var autoFlipSeconds by rememberSaveable { mutableIntStateOf(0) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
@@ -206,6 +209,21 @@ fun MushafReaderPage(
 
     fun moveToPage(target: Int) {
         pageNumber = target.coerceIn(1, pageMap.pages.size)
+    }
+
+    val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex ||
+        showBookmarksDialog || showSurahInfoDialog || showReaderMenu ||
+        showSearchDialog || showAutoFlipDialog
+
+    LaunchedEffect(pageNumber, autoFlipSeconds, isReaderDialogOpen) {
+        if (autoFlipSeconds > 0 && !isReaderDialogOpen) {
+            delay(autoFlipSeconds * 1_000L)
+            if (pageNumber < pageMap.pages.size) {
+                moveToPage(pageNumber + 1)
+            } else {
+                autoFlipSeconds = 0
+            }
+        }
     }
 
     val searchResults = remember(surahs, searchInput) {
@@ -502,6 +520,12 @@ fun MushafReaderPage(
                     }) { Text("فهرس السور") }
                     TextButton(onClick = {
                         showReaderMenu = false
+                        showAutoFlipDialog = true
+                    }) {
+                        Text(if (autoFlipSeconds > 0) "إعداد التقليب التلقائي" else "التقليب التلقائي")
+                    }
+                    TextButton(onClick = {
+                        showReaderMenu = false
                         showJuzIndex = true
                     }) { Text("فهرس الأجزاء") }
                     TextButton(onClick = {
@@ -543,6 +567,41 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showAutoFlipDialog) {
+        AlertDialog(
+            onDismissRequest = { showAutoFlipDialog = false },
+            title = { Text("التقليب التلقائي للصفحات") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("اختر المدة بين كل صفحة والتي تليها.")
+                    listOf(10, 20, 30, 60).forEach { seconds ->
+                        TextButton(
+                            onClick = {
+                                autoFlipSeconds = seconds
+                                showAutoFlipDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("كل ${toArabicDigits(seconds)} ثانية")
+                        }
+                    }
+                    if (autoFlipSeconds > 0) {
+                        TextButton(
+                            onClick = {
+                                autoFlipSeconds = 0
+                                showAutoFlipDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("إيقاف التقليب التلقائي") }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAutoFlipDialog = false }) { Text("إغلاق") }
+            }
         )
     }
 
