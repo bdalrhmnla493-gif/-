@@ -216,6 +216,8 @@ fun MushafReaderPage(
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
     var autoFlipPauseToken by remember { mutableIntStateOf(0) }
+    var isTouchingPage by remember { mutableStateOf(false) }
+    var showReaderControls by rememberSaveable { mutableStateOf(!readerFullScreen) }
     var showPageIndex by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
@@ -238,6 +240,10 @@ fun MushafReaderPage(
     LaunchedEffect(pageNumber) {
         pageZoom = 1f
         pageOffset = Offset.Zero
+    }
+
+    LaunchedEffect(readerFullScreen) {
+        showReaderControls = !readerFullScreen
     }
 
     val pairedPageNumber = remember(pageNumber, pageMap, isLandscape, showLandscapeSpread) {
@@ -344,9 +350,10 @@ fun MushafReaderPage(
         autoFlipSeconds,
         autoFlipDirection,
         isReaderDialogOpen,
+        isTouchingPage,
         autoFlipPauseToken
     ) {
-        if (autoFlipSeconds > 0 && !isReaderDialogOpen) {
+        if (autoFlipSeconds > 0 && !isReaderDialogOpen && !isTouchingPage) {
             delay(autoFlipSeconds * 1_000L)
             val step = if (isLandscape && showLandscapeSpread) 2 else 1
             val targetPage = pageNumber + (if (autoFlipDirection < 0) -1 else 1) * step
@@ -374,6 +381,7 @@ fun MushafReaderPage(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        if (!readerFullScreen || showReaderControls) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -426,6 +434,7 @@ fun MushafReaderPage(
                 Icon(Icons.Filled.Menu, contentDescription = "قائمة المصحف", tint = MushafGreen)
             }
         }
+        }
 
         Box(
             modifier = Modifier
@@ -433,12 +442,22 @@ fun MushafReaderPage(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(5.dp))
                 .onSizeChanged { viewportSize = it }
-                .pointerInput(pageNumber, viewportSize, isLandscape, showLandscapeSpread) {
+                .pointerInput(
+                    pageNumber,
+                    viewportSize,
+                    isLandscape,
+                    showLandscapeSpread,
+                    readerFullScreen
+                ) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
+                        isTouchingPage = true
+                        autoFlipPauseToken++
                         val startingZoom = pageZoom
                         var totalHorizontalPan = 0f
                         var usedMultiplePointers = false
+                        var pointerMoved = false
+                        try {
 
                         do {
                             val event = awaitPointerEvent()
@@ -447,6 +466,9 @@ fun MushafReaderPage(
 
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
+                            if (panChange.getDistance() > 8f || zoomChange != 1f) {
+                                pointerMoved = true
+                            }
 
                             if (usedMultiplePointers || pageZoom > 1f || zoomChange != 1f) {
                                 val oldZoom = pageZoom.coerceAtLeast(1f)
@@ -478,14 +500,18 @@ fun MushafReaderPage(
                             }
 
                             if (event.changes.any { it.positionChanged() }) {
-                                autoFlipPauseToken++
                                 event.changes.forEach { change ->
                                     if (change.positionChanged()) change.consume()
                                 }
                             }
                         } while (event.changes.any { it.pressed })
+                        } finally {
+                            isTouchingPage = false
+                        }
 
-                        if (!usedMultiplePointers && startingZoom <= 1f && pageZoom <= 1f) {
+                        if (!pointerMoved && !usedMultiplePointers && readerFullScreen) {
+                            showReaderControls = !showReaderControls
+                        } else if (!usedMultiplePointers && startingZoom <= 1f && pageZoom <= 1f) {
                             when {
                                 totalHorizontalPan < -55f -> moveToPage(
                                     pageNumber + if (isLandscape && showLandscapeSpread) 2 else 1
@@ -600,6 +626,7 @@ fun MushafReaderPage(
             }
         }
 
+        if (!readerFullScreen || showReaderControls) {
         Row(
             modifier = Modifier.fillMaxWidth().height(38.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -628,6 +655,7 @@ fun MushafReaderPage(
             ) {
                 Text("الصفحة التالية")
             }
+        }
         }
     }
 
@@ -670,6 +698,7 @@ fun MushafReaderPage(
                     }
                     TextButton(onClick = {
                         onReaderFullScreenChange(!readerFullScreen)
+                        showReaderControls = readerFullScreen
                         showReaderMenu = false
                     }) {
                         Text(if (readerFullScreen) "إنهاء وضع القراءة الكامل" else "وضع القراءة الكامل")
