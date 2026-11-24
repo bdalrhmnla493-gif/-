@@ -110,6 +110,7 @@ fun MushafReaderPage(
 
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
+    var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
@@ -121,6 +122,7 @@ fun MushafReaderPage(
             initialSurah.coerceIn(1, 114),
             initialAyah.coerceAtLeast(1)
         )
+        initialPageReady = true
     }
 
     val currentBoundary = pageMap.pages.getOrNull(pageNumber - 1) ?: pageMap.pages.first()
@@ -137,8 +139,10 @@ fun MushafReaderPage(
     val showBasmala = currentBoundary.ayah == 1 &&
         currentBoundary.surah != 1 && currentBoundary.surah != 9
 
-    LaunchedEffect(pageNumber, currentBoundary.surah, currentBoundary.ayah) {
-        onSavePosition(currentBoundary.surah, currentBoundary.ayah)
+    LaunchedEffect(pageNumber, currentBoundary.surah, currentBoundary.ayah, initialPageReady) {
+        if (initialPageReady) {
+            onSavePosition(currentBoundary.surah, currentBoundary.ayah)
+        }
     }
 
     fun moveToPage(target: Int) {
