@@ -1,7 +1,11 @@
 package com.rafiq.quran
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,9 +34,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -1258,6 +1264,8 @@ private fun SearchResultRow(
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    val shareText = "${result.text}\n(${result.surahName}: ${result.ayahNumber})\nرفيق القرآن"
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1274,6 +1282,26 @@ private fun SearchResultRow(
                 fontWeight = FontWeight.Bold
             )
             Text(result.text, color = MushafInk, textAlign = TextAlign.End, maxLines = 2)
+        }
+        IconButton(
+            onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("آية قرآنية", shareText))
+                Toast.makeText(context, "تم نسخ الآية", Toast.LENGTH_SHORT).show()
+            }
+        ) {
+            Icon(Icons.Filled.ContentCopy, contentDescription = "نسخ الآية", tint = MushafGreen)
+        }
+        IconButton(
+            onClick = {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, shareText)
+                }
+                context.startActivity(Intent.createChooser(intent, "مشاركة الآية"))
+            }
+        ) {
+            Icon(Icons.Filled.Share, contentDescription = "مشاركة الآية", tint = MushafGreen)
         }
         IconButton(onClick = onFavoriteClick) {
             Icon(
