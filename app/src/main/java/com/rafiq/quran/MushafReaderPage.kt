@@ -99,7 +99,9 @@ fun MushafReaderPage(
     surahs: List<QuranSurah>,
     initialSurah: Int,
     initialAyah: Int,
+    readerFullScreen: Boolean,
     onBack: () -> Unit,
+    onReaderFullScreenChange: (Boolean) -> Unit,
     onSavePosition: (Int, Int) -> Unit
 ) {
     val context = LocalContext.current
@@ -502,6 +504,12 @@ fun MushafReaderPage(
                         showReaderMenu = false
                         showJuzIndex = true
                     }) { Text("فهرس الأجزاء") }
+                    TextButton(onClick = {
+                        onReaderFullScreenChange(!readerFullScreen)
+                        showReaderMenu = false
+                    }) {
+                        Text(if (readerFullScreen) "إنهاء وضع القراءة الكامل" else "وضع القراءة الكامل")
+                    }
                     TextButton(onClick = {
                         showSurahInfoDialog = true
                         showReaderMenu = false
