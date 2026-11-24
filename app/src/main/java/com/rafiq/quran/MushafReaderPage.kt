@@ -858,13 +858,10 @@ fun MushafReaderPage(
 
     if (showAyahPickerDialog) {
         val selectedPickerSurah = surahs.firstOrNull { it.number == pickerSurahNumber }
-        val parsedPickerAyah = pickerAyahInput.mapNotNull { char ->
-            when (char) {
-                in '٠'..'٩' -> (char.code - '٠'.code).digitToIntOrNull()
-                in '0'..'9' -> char.digitToIntOrNull()
-                else -> null
-            }
-        }.joinToString("").toIntOrNull()
+        val parsedPickerAyah = pickerAyahInput
+            .mapNotNull { char -> char.digitToIntOrNull() }
+            .joinToString("")
+            .toIntOrNull()
         val validPickerAyah = selectedPickerSurah?.ayahs?.firstOrNull {
             it.number == parsedPickerAyah
         }
