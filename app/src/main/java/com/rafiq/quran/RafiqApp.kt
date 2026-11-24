@@ -568,26 +568,22 @@ private fun HomePage(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     HomeSectionTitle("المميزات السريعة")
-                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            HomeFeatureCard("🎧", "مشغل القرآن", "غير متاح بعد", Modifier.weight(1f)) {
-                                onFeature("مشغل القرآن")
-                            }
-                            HomeFeatureCard("📖", "ختمتي ورحلتي", "غير متاح بعد", Modifier.weight(1f)) {
-                                onFeature("ختمتي ورحلتي")
-                            }
-                            HomeFeatureCard("🧭", "القبلة", "غير متاحة بعد", Modifier.weight(1f)) {
-                                onFeature("القبلة")
-                            }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        HomeFeatureCard("📿", "السبحة الذكية", "", Modifier.weight(1f), onOpenTasbeeh)
+                        HomeFeatureCard("🌿", "تدبر آية", "", Modifier.weight(1f)) {
+                            onFeature("تدبر آية")
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            HomeFeatureCard("🌿", "تدبر آية", "غير متاح بعد", Modifier.weight(1f)) {
-                                onFeature("تدبر آية")
-                            }
-                            HomeFeatureCard(
-                                "📿", "السبحة الذكية", "$count تسبيحة محفوظة",
-                                Modifier.weight(1f), onOpenTasbeeh
-                            )
+                        HomeFeatureCard("🧭", "القبلة", "", Modifier.weight(1f)) {
+                            onFeature("القبلة")
+                        }
+                        HomeFeatureCard("📖", "ختمتي ورحلتي", "", Modifier.weight(1f)) {
+                            onFeature("ختمتي ورحلتي")
+                        }
+                        HomeFeatureCard("🎧", "مشغل القرآن", "", Modifier.weight(1f)) {
+                            onFeature("مشغل القرآن")
                         }
                     }
                 }
@@ -815,18 +811,18 @@ private fun HomeStatusCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.height(100.dp).clickable(onClick = onClick)
+        modifier = modifier.height(86.dp).clickable(onClick = onClick)
             .border(1.dp, HomeGold, RoundedCornerShape(17.dp)),
         shape = RoundedCornerShape(17.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = HomeCream)
     ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 7.dp),
+            Modifier.fillMaxSize().padding(horizontal = 3.dp, vertical = 5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(icon, fontSize = 22.sp)
+            Text(icon, fontSize = 20.sp)
             Text(
                 title,
                 color = HomeGreen,
@@ -855,7 +851,7 @@ private fun HomeFeatureCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.height(112.dp).clickable(onClick = onClick)
+        modifier = modifier.height(106.dp).clickable(onClick = onClick)
             .border(1.dp, HomeGold, RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -866,20 +862,20 @@ private fun HomeFeatureCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(icon, fontSize = 24.sp)
+            Text(icon, fontSize = 21.sp)
             Text(
                 title,
                 color = HomeGreen,
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp,
+                lineHeight = 12.sp,
                 maxLines = 2
             )
             Text(
                 subtitle,
                 color = HomeMuted,
-                fontSize = 8.sp,
+                fontSize = 7.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
