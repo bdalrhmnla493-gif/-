@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -243,15 +244,43 @@ fun MushafReaderPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (pageBitmap != null) {
-                    Image(
-                        bitmap = pageBitmap!!,
-                        contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 3.dp, vertical = 3.dp),
-                        contentScale = ContentScale.Fit
-                    )
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = pageBitmap!!,
+                            contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 21.dp, vertical = 8.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxHeight()
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            repeat(19) {
+                                Text("❧", color = MushafGold.copy(alpha = 0.78f), fontSize = 12.sp)
+                            }
+                        }
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            repeat(19) {
+                                Text("❧", color = MushafGold.copy(alpha = 0.78f), fontSize = 12.sp)
+                            }
+                        }
+                    }
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth().height(28.dp),
