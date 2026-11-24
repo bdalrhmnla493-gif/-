@@ -297,7 +297,6 @@ fun RafiqApp() {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (tab) {
                     AppTab.HOME -> HomePage(
-                        count = tasbeehCount,
                         savedSurah = savedSurah,
                         savedAyah = savedAyah,
                         locationName = savedLocationName,
@@ -412,7 +411,6 @@ fun RafiqApp() {
 
 @Composable
 private fun HomePage(
-    count: Int,
     savedSurah: Int,
     savedAyah: Int,
     locationName: String,
