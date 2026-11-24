@@ -570,19 +570,19 @@ private fun HomePage(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        HomeFeatureCard("📿", "السبحة الذكية", "", Modifier.weight(1f), onOpenTasbeeh)
-                        HomeFeatureCard("🌿", "تدبر آية", "", Modifier.weight(1f)) {
-                            onFeature("تدبر آية")
-                        }
-                        HomeFeatureCard("🧭", "القبلة", "", Modifier.weight(1f)) {
-                            onFeature("القبلة")
+                        HomeFeatureCard("🎧", "مشغل القرآن", "", Modifier.weight(1f)) {
+                            onFeature("مشغل القرآن")
                         }
                         HomeFeatureCard("📖", "ختمتي ورحلتي", "", Modifier.weight(1f)) {
                             onFeature("ختمتي ورحلتي")
                         }
-                        HomeFeatureCard("🎧", "مشغل القرآن", "", Modifier.weight(1f)) {
-                            onFeature("مشغل القرآن")
+                        HomeFeatureCard("🧭", "القبلة", "", Modifier.weight(1f)) {
+                            onFeature("القبلة")
                         }
+                        HomeFeatureCard("🌿", "تدبر آية", "", Modifier.weight(1f)) {
+                            onFeature("تدبر آية")
+                        }
+                        HomeFeatureCard("📿", "السبحة الذكية", "", Modifier.weight(1f), onOpenTasbeeh)
                     }
                 }
             }
@@ -706,7 +706,7 @@ private fun HomeHeader(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
+            HomeHeaderLogo()
             Column(
                 Modifier.weight(1f).padding(horizontal = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -742,7 +742,7 @@ private fun HomeHeader(
                     )
                 }
             }
-            HomeHeaderLogo()
+            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
         }
     }
 }
