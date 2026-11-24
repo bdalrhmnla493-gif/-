@@ -671,13 +671,26 @@ fun MushafReaderPage(
                 if (currentSurah == null) {
                     Text("معلومات السورة غير متاحة حاليًا.")
                 } else {
+                    val startPage = MushafPageRepository.findPageNumber(
+                        pageMap.pages, currentSurah.number, 1
+                    )
+                    val startJuz = MushafPageRepository.findJuzNumber(
+                        pageMap.juz, currentSurah.number, 1
+                    )
                     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         Text("الاسم: ${currentSurah.name}", fontWeight = FontWeight.Bold)
                         Text("رقم السورة: ${toArabicDigits(currentSurah.number)}")
                         Text("عدد الآيات: ${toArabicDigits(currentSurah.ayahs.size)}")
                         Text("نوع النزول بحسب بيانات المصحف: ${currentSurah.revelationType}")
+                        Text("صفحة البداية: ${toArabicDigits(startPage)}")
+                        Text("الجزء الذي تبدأ فيه: ${toArabicDigits(startJuz)}")
                         Text("الاسم بالإنجليزية: ${currentSurah.englishName}")
                         Text("النقل الصوتي للاسم: ${currentSurah.transliteration}")
+                        Text(
+                            "المعلومات المعروضة هنا هي الحقول المتاحة في بيانات التطبيق، ولا تتضمن أسباب نزول أو فضائل غير موثقة.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             },
@@ -700,15 +713,18 @@ fun MushafReaderPage(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(favoriteResults, key = { "${it.surahNumber}-${it.ayahNumber}" }) { result ->
+                            val resultPage = MushafPageRepository.findPageNumber(
+                                pageMap.pages, result.surahNumber, result.ayahNumber
+                            )
+                            val resultJuz = MushafPageRepository.findJuzNumber(
+                                pageMap.juz, result.surahNumber, result.ayahNumber
+                            )
                             SearchResultRow(
                                 result = result,
                                 isFavorite = true,
+                                locationLabel = "صفحة ${toArabicDigits(resultPage)} • الجزء ${toArabicDigits(resultJuz)}",
                                 onClick = {
-                                    moveToPage(
-                                        MushafPageRepository.findPageNumber(
-                                            pageMap.pages, result.surahNumber, result.ayahNumber
-                                        )
-                                    )
+                                    moveToPage(resultPage)
                                     showFavoritesDialog = false
                                 },
                                 onFavoriteClick = { toggleFavorite(result) }
@@ -877,8 +893,11 @@ fun MushafReaderPage(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            val startPage = MushafPageRepository.findPageNumber(
+                                pageMap.pages, juz.surah, juz.ayah
+                            )
                             Text(
-                                "الجزء ${toArabicDigits(juz.index)}  •  ${juzSurah?.name.orEmpty()} ${toArabicDigits(juz.ayah)}",
+                                "الجزء ${toArabicDigits(juz.index)}  •  ${juzSurah?.name.orEmpty()} ${toArabicDigits(juz.ayah)}  •  صفحة ${toArabicDigits(startPage)}",
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.End
                             )
@@ -1231,15 +1250,18 @@ fun MushafReaderPage(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(searchResults, key = { "${it.surahNumber}-${it.ayahNumber}" }) { result ->
+                                val resultPage = MushafPageRepository.findPageNumber(
+                                    pageMap.pages, result.surahNumber, result.ayahNumber
+                                )
+                                val resultJuz = MushafPageRepository.findJuzNumber(
+                                    pageMap.juz, result.surahNumber, result.ayahNumber
+                                )
                                 SearchResultRow(
                                     result = result,
                                     isFavorite = QuranAyahReference(result.surahNumber, result.ayahNumber) in favoriteAyahs,
+                                    locationLabel = "صفحة ${toArabicDigits(resultPage)} • الجزء ${toArabicDigits(resultJuz)}",
                                     onClick = {
-                                        moveToPage(
-                                            MushafPageRepository.findPageNumber(
-                                                pageMap.pages, result.surahNumber, result.ayahNumber
-                                            )
-                                        )
+                                        moveToPage(resultPage)
                                         showSearchDialog = false
                                         searchInput = ""
                                     },
@@ -1262,6 +1284,7 @@ fun MushafReaderPage(
 private fun SearchResultRow(
     result: QuranSearchResult,
     isFavorite: Boolean,
+    locationLabel: String = "",
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit
 ) {
@@ -1283,6 +1306,13 @@ private fun SearchResultRow(
                 fontWeight = FontWeight.Bold
             )
             Text(result.text, color = MushafInk, textAlign = TextAlign.End, maxLines = 2)
+            if (locationLabel.isNotBlank()) {
+                Text(
+                    locationLabel,
+                    color = MushafGreen,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
         IconButton(
             onClick = {
