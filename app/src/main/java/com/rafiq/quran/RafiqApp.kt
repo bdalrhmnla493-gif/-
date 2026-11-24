@@ -1108,16 +1108,16 @@ private fun QuranPage(
                         )
                         if (lastSurah != null) {
                             Text(
-                                "آخر موضع قراءة: \u0024{lastSurah.name} • الآية \u0024{savedAyah.coerceAtLeast(1)}",
+                                "آخر موضع قراءة: ${lastSurah.name} • الآية ${savedAyah.coerceAtLeast(1)}",
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
                                 buildString {
-                                    if (lastPage != null) append("الصفحة \u0024lastPage")
+                                    if (lastPage != null) append("الصفحة $lastPage")
                                     if (lastJuz != null) {
                                         if (isNotEmpty()) append(" • ")
-                                        append("الجزء \u0024lastJuz")
+                                        append("الجزء $lastJuz")
                                     }
                                 },
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1246,7 +1246,7 @@ private fun QuranPage(
                         Text("لا توجد آيات مطابقة لعبارة البحث.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    items(matchingAyahs, key = { "search-\u0024{it.surahNumber}-\u0024{it.ayahNumber}" }) { result ->
+                    items(matchingAyahs, key = { "search-${it.surahNumber}-${it.ayahNumber}" }) { result ->
                         Card(
                             Modifier.fillMaxWidth().clickable {
                                 openReader(result.surahNumber, result.ayahNumber)
@@ -1259,7 +1259,7 @@ private fun QuranPage(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    "\u0024{result.surahName} • الآية \u0024{result.ayahNumber}",
+                                    "${result.surahName} • الآية ${result.ayahNumber}",
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -1278,7 +1278,7 @@ private fun QuranPage(
                     }
                 }
             }
-            item { Text("السور • \u0024{filtered.size}", fontWeight = FontWeight.Bold) }
+            item { Text("السور • ${filtered.size}", fontWeight = FontWeight.Bold) }
             items(filtered, key = { it.number }) { surah ->
                 Card(
                     Modifier.fillMaxWidth().clickable { openReader(surah.number, 1) },
