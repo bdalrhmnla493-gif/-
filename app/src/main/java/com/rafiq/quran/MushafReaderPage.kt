@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -78,6 +79,8 @@ import com.rafiq.quran.data.MushafPageRepository
 import com.rafiq.quran.data.MushafBookmarkRepository
 import com.rafiq.quran.data.QuranFavoriteRepository
 import com.rafiq.quran.data.QuranAyahReference
+import com.rafiq.quran.data.QuranAyahBookmark
+import com.rafiq.quran.data.QuranAyahBookmarkRepository
 import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSearchResult
 import com.rafiq.quran.data.QuranSurah
@@ -94,6 +97,7 @@ import kotlinx.coroutines.withContext
 private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
 private val MushafBookmarkedPagesKey = stringSetPreferencesKey("bookmarked_pages")
 private val FavoriteAyahsKey = stringSetPreferencesKey("favorite_ayahs")
+private val AyahBookmarksKey = stringSetPreferencesKey("ayah_bookmarks")
 private val AutoFlipSecondsKey = intPreferencesKey("auto_flip_seconds")
 private val AutoFlipDirectionKey = intPreferencesKey("auto_flip_direction")
 
@@ -126,6 +130,13 @@ fun MushafReaderPage(
         .collectAsState(initial = emptySet())
     val favoriteAyahs = remember(savedFavoriteKeys) {
         QuranFavoriteRepository.decode(savedFavoriteKeys)
+    }
+
+    val savedAyahBookmarkKeys by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[AyahBookmarksKey] ?: emptySet() }
+        .collectAsState(initial = emptySet())
+    val ayahBookmarks = remember(savedAyahBookmarkKeys) {
+        QuranAyahBookmarkRepository.decode(savedAyahBookmarkKeys)
     }
 
     val autoFlipSeconds by context.mushafBookmarkStore.data
@@ -174,6 +185,12 @@ fun MushafReaderPage(
     var showSurahIndex by rememberSaveable { mutableStateOf(false) }
     var showJuzIndex by rememberSaveable { mutableStateOf(false) }
     var showBookmarksDialog by rememberSaveable { mutableStateOf(false) }
+    var showAyahBookmarksDialog by rememberSaveable { mutableStateOf(false) }
+    var showSaveAyahBookmarkDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingBookmarkSurah by rememberSaveable { mutableIntStateOf(1) }
+    var pendingBookmarkAyah by rememberSaveable { mutableIntStateOf(1) }
+    var ayahBookmarkName by rememberSaveable { mutableStateOf("") }
+    var ayahBookmarkColorHex by rememberSaveable { mutableStateOf("#B99A60") }
     var showFavoritesDialog by rememberSaveable { mutableStateOf(false) }
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
@@ -253,7 +270,8 @@ fun MushafReaderPage(
     }
 
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
-        showBookmarksDialog || showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
+        showBookmarksDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
+        showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
         showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
 
     LaunchedEffect(
@@ -546,6 +564,10 @@ fun MushafReaderPage(
                         showReaderMenu = false
                         showBookmarksDialog = true
                     }) { Text("علامات الصفحات") }
+                    TextButton(onClick = {
+                        showReaderMenu = false
+                        showAyahBookmarksDialog = true
+                    }) { Text("علامات الآيات") }
                     TextButton(onClick = {
                         pickerSurahNumber = currentBoundary.surah
                         pickerAyahInput = currentBoundary.ayah.toString()
@@ -990,41 +1012,187 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(
+                            enabled = selectedPickerSurah != null && validPickerAyah != null,
+                            onClick = {
+                                val targetSurah = selectedPickerSurah ?: return@TextButton
+                                val targetAyah = validPickerAyah ?: return@TextButton
+                                moveToPage(
+                                    MushafPageRepository.findPageNumber(
+                                        pageMap.pages, targetSurah.number, targetAyah.number
+                                    )
+                                )
+                                onSavePosition(targetSurah.number, targetAyah.number)
+                                showAyahPickerDialog = false
+                            }
+                        ) { Text("فتح الآية") }
+                        TextButton(
+                            enabled = selectedPickerSurah != null && validPickerAyah != null,
+                            onClick = {
+                                val targetSurah = selectedPickerSurah ?: return@TextButton
+                                val targetAyah = validPickerAyah ?: return@TextButton
+                                toggleFavorite(
+                                    QuranSearchResult(
+                                        targetSurah.number,
+                                        targetSurah.name,
+                                        targetAyah.number,
+                                        targetAyah.text
+                                    )
+                                )
+                                showAyahPickerDialog = false
+                            }
+                        ) { Text("حفظ كمفضلة") }
+                    }
                     TextButton(
                         enabled = selectedPickerSurah != null && validPickerAyah != null,
                         onClick = {
-                            val targetSurah = selectedPickerSurah ?: return@TextButton
-                            val targetAyah = validPickerAyah ?: return@TextButton
-                            moveToPage(
-                                MushafPageRepository.findPageNumber(
-                                    pageMap.pages, targetSurah.number, targetAyah.number
-                                )
-                            )
-                            onSavePosition(targetSurah.number, targetAyah.number)
+                            pendingBookmarkSurah = selectedPickerSurah!!.number
+                            pendingBookmarkAyah = validPickerAyah!!.number
+                            ayahBookmarkName = "${selectedPickerSurah.name} - الآية ${validPickerAyah.number}"
+                            ayahBookmarkColorHex = "#B99A60"
                             showAyahPickerDialog = false
+                            showSaveAyahBookmarkDialog = true
                         }
-                    ) { Text("فتح الآية") }
-                    TextButton(
-                        enabled = selectedPickerSurah != null && validPickerAyah != null,
-                        onClick = {
-                            val targetSurah = selectedPickerSurah ?: return@TextButton
-                            val targetAyah = validPickerAyah ?: return@TextButton
-                            toggleFavorite(
-                                QuranSearchResult(
-                                    targetSurah.number,
-                                    targetSurah.name,
-                                    targetAyah.number,
-                                    targetAyah.text
-                                )
-                            )
-                            showAyahPickerDialog = false
-                        }
-                    ) { Text("حفظ كمفضلة") }
+                    ) { Text("إضافة علامة مرجعية") }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showAyahPickerDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (showSaveAyahBookmarkDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveAyahBookmarkDialog = false },
+            title = { Text("حفظ علامة مرجعية للآية") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${surahs.firstOrNull { it.number == pendingBookmarkSurah }?.name.orEmpty()} • الآية ${toArabicDigits(pendingBookmarkAyah)}"
+                    )
+                    OutlinedTextField(
+                        value = ayahBookmarkName,
+                        onValueChange = { ayahBookmarkName = it.take(80) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("اسم العلامة") }
+                    )
+                    Text("لون العلامة")
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("#B99A60", "#2E7D5B", "#4776B8", "#9A5AA6", "#C66A43").forEach { colorHex ->
+                            TextButton(
+                                onClick = { ayahBookmarkColorHex = colorHex },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    if (ayahBookmarkColorHex == colorHex) "✓" else "●",
+                                    color = Color(android.graphics.Color.parseColor(colorHex))
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = ayahBookmarkName.isNotBlank(),
+                    onClick = {
+                        val bookmark = QuranAyahBookmark(
+                            id = UUID.randomUUID().toString(),
+                            surahNumber = pendingBookmarkSurah,
+                            ayahNumber = pendingBookmarkAyah,
+                            label = ayahBookmarkName.trim(),
+                            colorHex = ayahBookmarkColorHex,
+                            createdAtMillis = System.currentTimeMillis()
+                        )
+                        scope.launch {
+                            context.mushafBookmarkStore.edit { preferences ->
+                                preferences[AyahBookmarksKey] = QuranAyahBookmarkRepository.add(
+                                    preferences[AyahBookmarksKey] ?: emptySet(),
+                                    bookmark
+                                )
+                            }
+                        }
+                        showSaveAyahBookmarkDialog = false
+                    }
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveAyahBookmarkDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (showAyahBookmarksDialog) {
+        AlertDialog(
+            onDismissRequest = { showAyahBookmarksDialog = false },
+            title = { Text("علامات الآيات المرجعية") },
+            text = {
+                if (ayahBookmarks.isEmpty()) {
+                    Text("لا توجد علامات محفوظة. أضف علامة من قائمة اختيار السورة والآية.")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 460.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(ayahBookmarks, key = { it.id }) { bookmark ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "●",
+                                    color = Color(android.graphics.Color.parseColor(bookmark.colorHex)),
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    TextButton(
+                                        onClick = {
+                                            moveToPage(
+                                                MushafPageRepository.findPageNumber(
+                                                    pageMap.pages,
+                                                    bookmark.surahNumber,
+                                                    bookmark.ayahNumber
+                                                )
+                                            )
+                                            onSavePosition(bookmark.surahNumber, bookmark.ayahNumber)
+                                            showAyahBookmarksDialog = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(bookmark.label, fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "${surahs.firstOrNull { it.number == bookmark.surahNumber }?.name.orEmpty()} • الآية ${toArabicDigits(bookmark.ayahNumber)}",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
+                                        }
+                                    }
+                                }
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            context.mushafBookmarkStore.edit { preferences ->
+                                                preferences[AyahBookmarksKey] =
+                                                    QuranAyahBookmarkRepository.remove(
+                                                        preferences[AyahBookmarksKey] ?: emptySet(),
+                                                        bookmark.id
+                                                    )
+                                            }
+                                        }
+                                    }
+                                ) { Icon(Icons.Filled.Delete, contentDescription = "حذف العلامة") }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAyahBookmarksDialog = false }) { Text("إغلاق") }
             }
         )
     }
