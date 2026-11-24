@@ -32,7 +32,29 @@ object MushafPageRepository {
         val content = context.assets.open("mushaf-page-metadata.json")
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
-        return parse(content)
+        return parse(content).also(::validateCompleteMushaf)
+    }
+
+    internal fun validateCompleteMushaf(metadata: MushafPageMetadata) {
+        require(metadata.pages.size == 604) {
+            "يجب أن يحتوي مصحف المدينة على 604 صفحات كاملة."
+        }
+        require(metadata.juz.size == 30) {
+            "يجب أن يحتوي المصحف على 30 جزءًا."
+        }
+        require(metadata.pages.firstOrNull()?.let {
+            it.page == 1 && it.surah == 1 && it.ayah == 1
+        } == true) {
+            "بداية صفحات المصحف غير مطابقة."
+        }
+        require(metadata.pages.lastOrNull()?.page == 604) {
+            "نهاية صفحات المصحف غير مكتملة."
+        }
+        require(metadata.juz.firstOrNull()?.let {
+            it.index == 1 && it.surah == 1 && it.ayah == 1
+        } == true && metadata.juz.lastOrNull()?.index == 30) {
+            "حدود الأجزاء الثلاثين غير مكتملة."
+        }
     }
 
     internal fun parse(content: String): MushafPageMetadata {
