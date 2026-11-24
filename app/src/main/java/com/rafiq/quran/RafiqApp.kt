@@ -706,7 +706,7 @@ private fun HomeHeader(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            HomeHeaderLogo()
+            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
             Column(
                 Modifier.weight(1f).padding(horizontal = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -742,7 +742,7 @@ private fun HomeHeader(
                     )
                 }
             }
-            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
+            HomeHeaderLogo()
         }
     }
 }
