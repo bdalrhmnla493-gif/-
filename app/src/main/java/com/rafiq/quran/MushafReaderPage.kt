@@ -191,7 +191,7 @@ fun MushafReaderPage(
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
     var explicitPositionForPage by remember(initialSurah, initialAyah) {
-        mutableStateOf(initialSurah.coerceIn(1, 114) to initialAyah.coerceAtLeast(1))
+        mutableStateOf<Pair<Int, Int>?>(initialSurah.coerceIn(1, 114) to initialAyah.coerceAtLeast(1))
     }
     var pageZoom by rememberSaveable { mutableFloatStateOf(1f) }
     var pageOffset by remember { mutableStateOf(Offset.Zero) }
