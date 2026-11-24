@@ -40,6 +40,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -87,6 +88,8 @@ import com.rafiq.quran.data.CurrentWeather
 import com.rafiq.quran.data.PrayerTimes
 import com.rafiq.quran.data.PrayerWeatherRepository
 import com.rafiq.quran.data.QuranRepository
+import com.rafiq.quran.data.MushafPageMetadata
+import com.rafiq.quran.data.MushafPageRepository
 import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
@@ -97,9 +100,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Context.rafiqDataStore by preferencesDataStore(name = "rafiq_preferences")
 private val ThemeModeKey = stringPreferencesKey("theme_mode")
@@ -994,23 +999,55 @@ private fun QuranPage(
     retry: () -> Unit,
     savePosition: (Int, Int) -> Unit
 ) {
-    var selectedSurah by rememberSaveable { mutableIntStateOf(savedSurah) }
+    val context = LocalContext.current
+    var selectedSurah by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var pendingAyahNumber by rememberSaveable { mutableIntStateOf(savedAyah.coerceAtLeast(1)) }
-    val active = surahs?.firstOrNull { it.number == selectedSurah }
+    var pendingReaderTool by rememberSaveable { mutableStateOf<String?>(null) }
+    var pageMetadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
+
+    LaunchedEffect(context) {
+        pageMetadata = withContext(Dispatchers.IO) {
+            runCatching { MushafPageRepository.load(context) }.getOrNull()
+        }
+    }
+
+    val allSurahs = surahs ?: emptyList()
+    val active = allSurahs.firstOrNull { it.number == selectedSurah }
+    val lastSurah = allSurahs.firstOrNull { it.number == savedSurah }
+    val lastPage = if (savedSurah in 1..114) {
+        pageMetadata?.let {
+            MushafPageRepository.findPageNumber(it.pages, savedSurah, savedAyah.coerceAtLeast(1))
+        }
+    } else null
+    val lastJuz = if (savedSurah in 1..114) {
+        pageMetadata?.let {
+            MushafPageRepository.findJuzNumber(it.juz, savedSurah, savedAyah.coerceAtLeast(1))
+        }
+    } else null
+
+    fun openReader(surahNumber: Int, ayahNumber: Int = 1, tool: String? = null) {
+        selectedSurah = surahNumber.coerceIn(1, 114)
+        pendingAyahNumber = ayahNumber.coerceAtLeast(1)
+        pendingReaderTool = tool
+        savePosition(selectedSurah, pendingAyahNumber)
+    }
 
     if (active != null) {
         MushafReaderPage(
-            surahs = surahs ?: emptyList(),
+            surahs = allSurahs,
             initialSurah = active.number,
-            initialAyah = pendingAyahNumber.coerceAtLeast(1),
+            initialAyah = pendingAyahNumber,
             readerFullScreen = readerFullScreen,
             onBack = {
                 selectedSurah = 0
+                pendingReaderTool = null
                 onReaderFullScreenChange(false)
             },
             onReaderFullScreenChange = onReaderFullScreenChange,
-            onSavePosition = savePosition
+            onSavePosition = savePosition,
+            initialTool = pendingReaderTool,
+            onInitialToolHandled = { pendingReaderTool = null }
         )
     } else if (loading || (surahs == null && error == null)) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1031,7 +1068,6 @@ private fun QuranPage(
             Button(onClick = retry) { Text("إعادة المحاولة") }
         }
     } else {
-        val allSurahs = surahs ?: emptyList()
         val filtered = allSurahs.filter {
             query.isBlank() ||
                 it.name.contains(query.trim()) ||
@@ -1041,11 +1077,156 @@ private fun QuranPage(
         val matchingAyahs = remember(allSurahs, query) {
             QuranSearch.search(allSurahs, query, limit = 100)
         }
+
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "القرآن الكريم",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "مصحفك وقراءتك وفهارسك في مكان واحد",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        if (lastSurah != null) {
+                            Text(
+                                "آخر موضع قراءة: \u0024{lastSurah.name} • الآية \u0024{savedAyah.coerceAtLeast(1)}",
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                buildString {
+                                    if (lastPage != null) append("الصفحة \u0024lastPage")
+                                    if (lastJuz != null) {
+                                        if (isNotEmpty()) append(" • ")
+                                        append("الجزء \u0024lastJuz")
+                                    }
+                                },
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Button(
+                                onClick = { openReader(lastSurah.number, savedAyah.coerceAtLeast(1)) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Filled.Bookmark, contentDescription = null)
+                                Spacer(Modifier.size(8.dp))
+                                Text("متابعة القراءة")
+                            }
+                        } else {
+                            Button(
+                                onClick = { openReader(1, 1) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Filled.MenuBook, contentDescription = null)
+                                Spacer(Modifier.size(8.dp))
+                                Text("ابدأ القراءة")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text("الوصول السريع", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "فهرس السور",
+                        subtitle = "114 سورة",
+                        icon = Icons.Filled.MenuBook,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "surahs") }
+                    )
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "فهرس الأجزاء",
+                        subtitle = "30 جزءًا",
+                        icon = Icons.Filled.AutoStories,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "juz") }
+                    )
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "فهرس الصفحات",
+                        subtitle = "604 صفحات",
+                        icon = Icons.Filled.Bookmark,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "pages") }
+                    )
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "علامات الصفحات",
+                        subtitle = "مواضعك المحفوظة",
+                        icon = Icons.Filled.Bookmark,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "bookmarks") }
+                    )
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "علامات الآيات",
+                        subtitle = "أسماء وألوان",
+                        icon = Icons.Filled.Bookmark,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "ayah-bookmarks") }
+                    )
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "الآيات المفضلة",
+                        subtitle = "مع ملاحظاتك",
+                        icon = Icons.Filled.AutoStories,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "favorites") }
+                    )
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "البحث في القرآن",
+                        subtitle = "بحث دون إنترنت",
+                        icon = Icons.Filled.TouchApp,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "search") }
+                    )
+                    QuranHubAction(
+                        modifier = Modifier.weight(1f),
+                        title = "إعدادات المصحف",
+                        subtitle = "المظهر والقراءة",
+                        icon = Icons.Filled.Settings,
+                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "settings") }
+                    )
+                }
+            }
+            item {
+                Text(
+                    "التلاوات والتفسير ومعاني الكلمات قيد التجهيز بعد اعتماد مصادرها وحقوق استخدامها.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             item {
                 OutlinedTextField(
                     value = query,
@@ -1056,72 +1237,33 @@ private fun QuranPage(
                     shape = RoundedCornerShape(16.dp)
                 )
             }
-            if (savedSurah in 1..114) {
-                val last = allSurahs.firstOrNull { it.number == savedSurah }
-                if (last != null) {
-                    item {
-                        Card(
-                            Modifier.fillMaxWidth().clickable {
-                                selectedSurah = last.number
-                                pendingAyahNumber = savedAyah.coerceAtLeast(1)
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                        ) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("متابعة القراءة", fontWeight = FontWeight.Bold)
-                                Text(last.name + " • الآية " + savedAyah)
-                            }
-                        }
-                    }
-                }
-            }
             if (query.isNotBlank()) {
                 item {
-                    Text(
-                        "نتائج البحث في الآيات",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("نتائج البحث في الآيات", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
                 if (matchingAyahs.isEmpty()) {
                     item {
-                        Text(
-                            "لا توجد آيات مطابقة لعبارة البحث.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("لا توجد آيات مطابقة لعبارة البحث.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    items(
-                        matchingAyahs,
-                        key = { "search-${it.surahNumber}-${it.ayahNumber}" }
-                    ) { result ->
+                    items(matchingAyahs, key = { "search-\u0024{it.surahNumber}-\u0024{it.ayahNumber}" }) { result ->
                         Card(
                             Modifier.fillMaxWidth().clickable {
-                                selectedSurah = result.surahNumber
-                                pendingAyahNumber = result.ayahNumber
-                                savePosition(result.surahNumber, result.ayahNumber)
+                                openReader(result.surahNumber, result.ayahNumber)
                             },
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             Column(
                                 Modifier.fillMaxWidth().padding(14.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    "${result.surahName} • الآية ${result.ayahNumber}",
+                                    "\u0024{result.surahName} • الآية \u0024{result.ayahNumber}",
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Text(
-                                    result.text,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.End
-                                )
+                                Text(result.text, maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
                             }
                         }
                     }
@@ -1136,14 +1278,10 @@ private fun QuranPage(
                     }
                 }
             }
-            item { Text("السور • " + filtered.size, fontWeight = FontWeight.Bold) }
+            item { Text("السور • \u0024{filtered.size}", fontWeight = FontWeight.Bold) }
             items(filtered, key = { it.number }) { surah ->
                 Card(
-                    Modifier.fillMaxWidth().clickable {
-                        selectedSurah = surah.number
-                        pendingAyahNumber = 1
-                        savePosition(surah.number, 1)
-                    },
+                    Modifier.fillMaxWidth().clickable { openReader(surah.number, 1) },
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
@@ -1163,6 +1301,29 @@ private fun QuranPage(
                         Text(surah.number.toString(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuranHubAction(
+    modifier: Modifier = Modifier,
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.height(104.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
