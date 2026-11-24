@@ -303,6 +303,8 @@ fun MushafReaderPage(
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderSettingsDialog by rememberSaveable { mutableStateOf(false) }
+    var showReaderGuideDialog by rememberSaveable { mutableStateOf(false) }
+    var showMushafInfoDialog by rememberSaveable { mutableStateOf(false) }
     var autoFlipPauseToken by remember { mutableIntStateOf(0) }
     var isTouchingPage by remember { mutableStateOf(false) }
     var showReaderControls by rememberSaveable { mutableStateOf(!readerFullScreen) }
@@ -456,7 +458,8 @@ fun MushafReaderPage(
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
         showBookmarksDialog || showSavePageBookmarkDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
         showFavoritesDialog || showFavoriteNoteDialog || showSurahInfoDialog || showReaderMenu ||
-        showSearchDialog || showAutoFlipDialog || showReaderSettingsDialog || showAyahPickerDialog
+        showSearchDialog || showAutoFlipDialog || showReaderSettingsDialog ||
+        showReaderGuideDialog || showMushafInfoDialog || showAyahPickerDialog
 
     LaunchedEffect(
         pageNumber,
@@ -851,6 +854,14 @@ fun MushafReaderPage(
                         showReaderMenu = false
                     }) { Text("إعدادات المصحف") }
                     TextButton(onClick = {
+                        showReaderGuideDialog = true
+                        showReaderMenu = false
+                    }) { Text("دليل استخدام المصحف") }
+                    TextButton(onClick = {
+                        showMushafInfoDialog = true
+                        showReaderMenu = false
+                    }) { Text("مصادر النص والمصحف") }
+                    TextButton(onClick = {
                         pageZoom = (pageZoom + 0.25f).coerceAtMost(4f)
                         showReaderMenu = false
                     }) { Text("تكبير الصفحة") }
@@ -893,6 +904,68 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showReaderGuideDialog) {
+        AlertDialog(
+            onDismissRequest = { showReaderGuideDialog = false },
+            title = { Text("دليل استخدام المصحف") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("التنقل بين الصفحات", fontWeight = FontWeight.Bold)
+                    Text("اسحب من اليمين إلى اليسار للصفحة التالية، ومن اليسار إلى اليمين للصفحة السابقة. استخدم فهرس الصفحات للانتقال المباشر.")
+                    Text("التكبير", fontWeight = FontWeight.Bold)
+                    Text("باعد بين إصبعين للتكبير حتى 4 مرات، وقرّب بينهما للتصغير. يمكنك سحب الصفحة بعد تكبيرها، واستخدام إعادة ضبط الحجم من القائمة.")
+                    Text("الوضع الأفقي", fontWeight = FontWeight.Bold)
+                    Text("عند تدوير الهاتف للوضع الأفقي، يمكنك عرض صفحتين متجاورتين أو اختيار عرض صفحة واحدة من قائمة المصحف.")
+                    Text("اختيار آية", fontWeight = FontWeight.Bold)
+                    Text("استخدم «اختيار سورة وآية» من القائمة. لا يتم تحديد موضع آية فوق صورة الصفحة لأن خرائط الإحداثيات الدقيقة لم تُعتمد بعد.")
+                    Text("العلامات والمفضلة", fontWeight = FontWeight.Bold)
+                    Text("يمكنك حفظ علامة للصفحة باسم ولون، وحفظ علامة مستقلة للآية. أضف الآية إلى المفضلة لتكتب ملاحظة شخصية عليها.")
+                    Text("البحث والنسخ والمشاركة", fontWeight = FontWeight.Bold)
+                    Text("ابحث دون إنترنت، ثم انتقل بين النتائج السابقة والتالية. يمكنك نسخ الآية ومشاركتها كنص مع اسم السورة ورقم الآية.")
+                    Text("التقليب التلقائي", fontWeight = FontWeight.Bold)
+                    Text("اختر المدة والاتجاه من «التقليب التلقائي». يتوقف التقليب أثناء لمس الصفحة أو فتح القوائم.")
+                    Text("القراءة الغامرة", fontWeight = FontWeight.Bold)
+                    Text("فعّل وضع القراءة الكامل من القائمة. المس الصفحة لإظهار أدوات القراءة أو إخفائها.")
+                    Text("ملاحظة", fontWeight = FontWeight.Bold)
+                    Text("التلاوات والتفسير ومعاني الكلمات ومشاركة الآية كصورة لم تُفعّل بعد؛ لن تُعرض كوظائف جاهزة قبل اعتماد المصادر والحقوق والاختبارات.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReaderGuideDialog = false }) { Text("إغلاق") }
+            }
+        )
+    }
+
+    if (showMushafInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showMushafInfoDialog = false },
+            title = { Text("مصادر النص والمصحف") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("نص القرآن", fontWeight = FontWeight.Bold)
+                    Text("النص العثماني الموجود في التطبيق من Tanzil Quran Text، إصدار 1.1، حقوق النشر 2007–2024، بترخيص Creative Commons Attribution 3.0. شروط الترخيص تمنع تغيير النص وتطلب ذكر Tanzil Project وإتاحة رابط tanzil.net.")
+                    Text("بيانات السور وحدود الصفحات", fontWeight = FontWeight.Bold)
+                    Text("بيانات السور وحدود الصفحات في ملفات المشروع من Tanzil Quran Metadata، بترخيص Creative Commons Attribution 3.0. تُستخدم هذه البيانات للفهرسة والانتقال، ولا تثبت وحدها صحة كل صورة صفحة.")
+                    Text("صور الصفحات", fontWeight = FontWeight.Bold)
+                    Text("تُجهز صور الصفحات أثناء البناء من أرشيف Miftah-Fentaw/Quran-Images عند الإصدار المثبت في ملف GitHub Actions. يرفق مسار البناء ترخيص MIT ونص نسب يذكر Quran-PNG / quran.com-images والمجمع بوصفه مصدر الرسم الأصلي.")
+                    Text("حدود التحقق الحالي", fontWeight = FontWeight.Bold)
+                    Text("لم تتم حتى الآن مطابقة أرشيف الصور المستخدم آليًا مع الملف الرقمي الرسمي للمجمع باستخدام بصمة SHA-256. لذلك لا يعلن التطبيق أن الصور مطابقة لذلك الملف الرسمي قبل إتمام هذا التحقق.")
+                    Text("سلامة النص", fontWeight = FontWeight.Bold)
+                    Text("لا يسمح التطبيق بتعديل نص الآية عند النسخ أو إضافة الملاحظات؛ الملاحظات محفوظة في بيانات مستقلة عن النص القرآني.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMushafInfoDialog = false }) { Text("إغلاق") }
+            }
         )
     }
 
