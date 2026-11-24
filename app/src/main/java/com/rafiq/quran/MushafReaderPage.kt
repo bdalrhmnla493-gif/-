@@ -21,7 +21,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -112,6 +111,7 @@ fun MushafReaderPage(
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
+    var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
     var searchInput by rememberSaveable { mutableStateOf("") }
@@ -170,9 +170,6 @@ fun MushafReaderPage(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "قائمة السور", tint = MushafGreen)
-            }
             IconButton(onClick = { showSearchDialog = true }, modifier = Modifier.size(42.dp)) {
                 Icon(Icons.Filled.Search, contentDescription = "البحث في القرآن", tint = MushafGreen)
             }
@@ -187,10 +184,14 @@ fun MushafReaderPage(
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
-                Text("الجزء ${toArabicDigits(currentJuz)}", color = MushafGreen, fontSize = 11.sp)
+                Text(
+                    "الجزء ${toArabicDigits(currentJuz)}  •  صفحة ${toArabicDigits(pageNumber)}",
+                    color = MushafGreen,
+                    fontSize = 11.sp
+                )
             }
-            IconButton(onClick = { showPageDialog = true }, modifier = Modifier.size(42.dp)) {
-                Icon(Icons.Filled.Menu, contentDescription = "الانتقال إلى صفحة", tint = MushafGreen)
+            IconButton(onClick = { showReaderMenu = true }, modifier = Modifier.size(42.dp)) {
+                Icon(Icons.Filled.Menu, contentDescription = "قائمة المصحف", tint = MushafGreen)
             }
         }
 
@@ -217,10 +218,10 @@ fun MushafReaderPage(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MushafPaper, RoundedCornerShape(12.dp))
-                    .border(2.dp, MushafGold, RoundedCornerShape(12.dp))
+                    .background(MushafPaper, RoundedCornerShape(5.dp))
+                    .border(2.dp, MushafGold, RoundedCornerShape(5.dp))
                     .padding(5.dp)
-                    .border(1.dp, MushafLine, RoundedCornerShape(9.dp))
+                    .border(1.dp, MushafLine, RoundedCornerShape(3.dp))
                     .padding(horizontal = 13.dp, vertical = 9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -254,8 +255,8 @@ fun MushafReaderPage(
                         textAlign = TextAlign.Center,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 22.sp,
-                        lineHeight = 34.sp
+                        fontSize = 23.sp,
+                        lineHeight = 36.sp
                     )
                 }
                 val pageText = remember(pageAyahs) {
@@ -282,8 +283,8 @@ fun MushafReaderPage(
                     color = MushafInk,
                     textAlign = TextAlign.Justify,
                     fontFamily = FontFamily.Serif,
-                    fontSize = 23.sp,
-                    lineHeight = 38.sp,
+                    fontSize = 22.sp,
+                    lineHeight = 42.sp,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         textDirection = TextDirection.ContentOrRtl
                     )
@@ -319,6 +320,26 @@ fun MushafReaderPage(
                 Text("الصفحة التالية")
             }
         }
+    }
+
+    if (showReaderMenu) {
+        AlertDialog(
+            onDismissRequest = { showReaderMenu = false },
+            title = { Text("قائمة المصحف") },
+            text = { Text("اختر ما تريد فتحه.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReaderMenu = false
+                    showPageDialog = true
+                }) { Text("الانتقال إلى صفحة") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showReaderMenu = false
+                    onBack()
+                }) { Text("قائمة السور") }
+            }
+        )
     }
 
     if (showPageDialog) {
