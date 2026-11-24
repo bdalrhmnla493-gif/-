@@ -217,7 +217,7 @@ fun MushafReaderPage(
         .map { preferences -> preferences[ReaderFlipAxisKey] ?: "horizontal" }
         .collectAsState(initial = "horizontal")
     val systemDarkTheme = isSystemInDarkTheme()
-    val effectiveReaderTheme = when (effectiveReaderTheme) {
+    val effectiveReaderTheme = when (readerTheme) {
         "system" -> if (systemDarkTheme) "night" else "paper"
         else -> readerTheme
     }
@@ -481,6 +481,8 @@ fun MushafReaderPage(
         autoFlipDirection,
         isReaderDialogOpen,
         isTouchingPage,
+        isLandscape,
+        showLandscapeSpread,
         autoFlipPauseToken
     ) {
         if (autoFlipSeconds > 0 && !isReaderDialogOpen && !isTouchingPage) {
