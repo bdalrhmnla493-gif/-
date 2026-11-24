@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,10 +51,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -134,6 +141,9 @@ fun MushafReaderPage(
 
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
+    var pageZoom by rememberSaveable { mutableFloatStateOf(1f) }
+    var pageOffset by remember { mutableStateOf(Offset.Zero) }
+    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var pageBitmap by remember(pageNumber) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
@@ -152,6 +162,11 @@ fun MushafReaderPage(
             initialAyah.coerceAtLeast(1)
         )
         initialPageReady = true
+    }
+
+    LaunchedEffect(pageNumber) {
+        pageZoom = 1f
+        pageOffset = Offset.Zero
     }
 
     LaunchedEffect(context, pageNumber) {
@@ -259,20 +274,34 @@ fun MushafReaderPage(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .pointerInput(pageNumber, pageMap.pages.size) {
-                    var totalDrag = 0f
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, dragAmount ->
-                            totalDrag += dragAmount
-                            change.consume()
-                        },
-                        onDragEnd = {
-                            when {
-                                totalDrag < -55f -> moveToPage(pageNumber + 1)
-                                totalDrag > 55f -> moveToPage(pageNumber - 1)
+                .clip(RoundedCornerShape(5.dp))
+                .onSizeChanged { viewportSize = it }
+                .pointerInput(pageNumber, pageZoom, viewportSize) {
+                    if (pageZoom <= 1f) {
+                        var totalDrag = 0f
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { change, dragAmount ->
+                                totalDrag += dragAmount
+                                change.consume()
+                            },
+                            onDragEnd = {
+                                when {
+                                    totalDrag < -55f -> moveToPage(pageNumber + 1)
+                                    totalDrag > 55f -> moveToPage(pageNumber - 1)
+                                }
                             }
+                        )
+                    } else {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            val maxX = (viewportSize.width * (pageZoom - 1f) / 2f).coerceAtLeast(0f)
+                            val maxY = (viewportSize.height * (pageZoom - 1f) / 2f).coerceAtLeast(0f)
+                            pageOffset = Offset(
+                                x = (pageOffset.x + dragAmount.x).coerceIn(-maxX, maxX),
+                                y = (pageOffset.y + dragAmount.y).coerceIn(-maxY, maxY)
+                            )
                         }
-                    )
+                    }
                 }
         ) {
             Column(
@@ -280,6 +309,12 @@ fun MushafReaderPage(
                     .fillMaxSize()
                     .background(MushafPaper, RoundedCornerShape(5.dp))
                     .border(2.dp, MushafGold, RoundedCornerShape(5.dp))
+                    .graphicsLayer {
+                        scaleX = pageZoom
+                        scaleY = pageZoom
+                        translationX = pageOffset.x
+                        translationY = pageOffset.y
+                    }
                     .padding(5.dp)
                     .border(1.dp, MushafLine, RoundedCornerShape(3.dp))
                     .padding(horizontal = 13.dp, vertical = 9.dp),
@@ -466,6 +501,20 @@ fun MushafReaderPage(
                         showReaderMenu = false
                         showJuzIndex = true
                     }) { Text("فهرس الأجزاء") }
+                    TextButton(onClick = {
+                        pageZoom = (pageZoom + 0.25f).coerceAtMost(2.5f)
+                        showReaderMenu = false
+                    }) { Text("تكبير الصفحة") }
+                    TextButton(onClick = {
+                        pageZoom = (pageZoom - 0.25f).coerceAtLeast(1f)
+                        if (pageZoom == 1f) pageOffset = Offset.Zero
+                        showReaderMenu = false
+                    }) { Text("تصغير الصفحة") }
+                    TextButton(onClick = {
+                        pageZoom = 1f
+                        pageOffset = Offset.Zero
+                        showReaderMenu = false
+                    }) { Text("إعادة ضبط الحجم") }
                     TextButton(onClick = {
                         showReaderMenu = false
                         showBookmarksDialog = true
