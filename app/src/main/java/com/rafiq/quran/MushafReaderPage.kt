@@ -246,7 +246,7 @@ fun MushafReaderPage(
     }
 
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex ||
-        showBookmarksDialog || showSurahInfoDialog || showReaderMenu ||
+        showBookmarksDialog || showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
         showSearchDialog || showAutoFlipDialog
 
     LaunchedEffect(pageNumber, autoFlipSeconds, isReaderDialogOpen) {
