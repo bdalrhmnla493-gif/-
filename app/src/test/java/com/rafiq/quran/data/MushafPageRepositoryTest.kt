@@ -21,26 +21,43 @@ class MushafPageRepositoryTest {
         }
     """.trimIndent()
 
+    private fun completeMetadata(
+        finalPage: MushafPageBoundary = MushafPageBoundary(604, 112, 1),
+        finalJuz: MushafJuzBoundary = MushafJuzBoundary(30, 78, 1)
+    ) = MushafPageMetadata(
+        pages = (1..604).map { page ->
+            when (page) {
+                1 -> MushafPageBoundary(1, 1, 1)
+                604 -> finalPage
+                else -> MushafPageBoundary(page, 2, page)
+            }
+        },
+        juz = (1..30).map { index ->
+            when (index) {
+                1 -> MushafJuzBoundary(1, 1, 1)
+                30 -> finalJuz
+                else -> MushafJuzBoundary(index, 2, index)
+            }
+        }
+    )
+
     @Test
     fun acceptsOnlyComplete604PageAnd30JuzMetadata() {
-        val complete = MushafPageMetadata(
-            pages = (1..604).map { page ->
-                MushafPageBoundary(
-                    page = page,
-                    surah = if (page == 1) 1 else 2,
-                    ayah = page
-                )
-            },
-            juz = (1..30).map { index ->
-                MushafJuzBoundary(
-                    index = index,
-                    surah = if (index == 1) 1 else 2,
-                    ayah = index
-                )
-            }
-        )
+        MushafPageRepository.validateCompleteMushaf(completeMetadata())
+    }
 
-        MushafPageRepository.validateCompleteMushaf(complete)
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncorrectFinalMushafPageBoundary() {
+        MushafPageRepository.validateCompleteMushaf(
+            completeMetadata(finalPage = MushafPageBoundary(604, 114, 1))
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncorrectFinalJuzBoundary() {
+        MushafPageRepository.validateCompleteMushaf(
+            completeMetadata(finalJuz = MushafJuzBoundary(30, 77, 1))
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
