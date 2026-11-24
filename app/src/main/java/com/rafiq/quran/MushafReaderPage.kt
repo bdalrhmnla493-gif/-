@@ -114,6 +114,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 
 private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
@@ -1284,6 +1287,13 @@ fun MushafReaderPage(
                                                 style = MaterialTheme.typography.labelSmall,
                                                 textAlign = TextAlign.End
                                             )
+                                            namedBookmark?.let {
+                                                Text(
+                                                    "أُضيفت: " + SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it.createdAtMillis)),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
                                         }
                                     }
                                     if (namedBookmark != null) {
@@ -1296,6 +1306,19 @@ fun MushafReaderPage(
                                             showSavePageBookmarkDialog = true
                                         }) {
                                             Icon(Icons.Filled.Edit, contentDescription = "تعديل علامة الصفحة")
+                                        }
+                                        IconButton(onClick = {
+                                            scope.launch {
+                                                context.mushafBookmarkStore.edit { preferences ->
+                                                    preferences[MushafNamedBookmarksKey] =
+                                                        MushafNamedPageBookmarkRepository.removePage(
+                                                            preferences[MushafNamedBookmarksKey] ?: emptySet(),
+                                                            namedBookmark.pageNumber
+                                                        )
+                                                }
+                                            }
+                                        }) {
+                                            Icon(Icons.Filled.Delete, contentDescription = "حذف علامة الصفحة")
                                         }
                                     }
                                 }
