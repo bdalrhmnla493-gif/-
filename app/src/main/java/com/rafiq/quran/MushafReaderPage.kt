@@ -201,7 +201,7 @@ fun MushafReaderPage(
         .collectAsState(initial = 1)
 
     val readerTheme by context.mushafBookmarkStore.data
-        .map { preferences -> preferences[ReaderThemeKey] ?: "paper" }
+        .map { preferences -> preferences[ReaderThemeKey] ?: "system" }
         .collectAsState(initial = "paper")
     val keepScreenAwake by context.mushafBookmarkStore.data
         .map { preferences -> preferences[KeepScreenAwakeKey] ?: false }
