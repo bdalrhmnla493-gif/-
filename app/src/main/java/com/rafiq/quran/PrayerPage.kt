@@ -121,92 +121,35 @@ internal fun PrayerSummaryCard(
                     fontSize = 25.sp
                 )
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 17.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     Box(
                         Modifier.clip(RoundedCornerShape(30.dp))
                             .background(green)
                             .border(1.dp, gold, RoundedCornerShape(30.dp))
-                            .padding(horizontal = 18.dp, vertical = 6.dp)
+                            .padding(horizontal = 20.dp, vertical = 6.dp)
                     ) {
                         Text(
                             "الصلاة القادمة",
                             color = Color(0xFFFFE8B7),
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    if (nextPrayer != null) {
-                        Text(
-                            nextPrayer.name,
-                            color = green,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Box(
-                            Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFFE7EFDF))
-                                .border(1.dp, gold.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
-                                .padding(horizontal = 23.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                formatCountdown(nextPrayer.remainingMillis),
-                                color = green,
-                                fontSize = 27.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-                        Text(
-                            "الوقت المتبقي • ${nextPrayer.time}",
-                            color = muted,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    } else if (loading) {
-                        CircularProgressIndicator(color = green)
-                        Text("جاري تحميل مواقيت الصلاة...", color = green)
-                    } else {
-                        Text(
-                            if (locationName.isBlank()) "اختَر مدينتك لعرض الصلاة القادمة"
-                            else errorMessage ?: "مواقيت الصلاة غير متاحة حاليًا",
-                            color = green,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        Modifier.fillMaxWidth().heightIn(min = 104.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                            Modifier.weight(0.9f).clip(RoundedCornerShape(13.dp))
                                 .background(Color(0xFFF1E8D6))
-                                .border(1.dp, gold.copy(alpha = 0.48f), RoundedCornerShape(14.dp))
-                                .padding(horizontal = 5.dp, vertical = 9.dp),
+                                .padding(horizontal = 3.dp, vertical = 9.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Text("التاريخ الهجري", color = green, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                hijriDate,
-                                color = green,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2
-                            )
-                        }
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFFF1E8D6))
-                                .border(1.dp, gold.copy(alpha = 0.48f), RoundedCornerShape(14.dp))
-                                .padding(horizontal = 5.dp, vertical = 9.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text("التاريخ الميلادي", color = green, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                             Text(
@@ -215,7 +158,92 @@ internal fun PrayerSummaryCard(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                maxLines = 2
+                                maxLines = 2,
+                                lineHeight = 15.sp
+                            )
+                        }
+
+                        Box(
+                            Modifier.width(1.dp).height(76.dp)
+                                .background(gold.copy(alpha = 0.55f))
+                        )
+
+                        Column(
+                            Modifier.weight(1.45f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            if (nextPrayer != null) {
+                                Text(
+                                    nextPrayer.name,
+                                    color = green,
+                                    fontSize = 21.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                                Box(
+                                    Modifier.clip(RoundedCornerShape(18.dp))
+                                        .background(Color(0xFFE7EFDF))
+                                        .border(1.dp, gold.copy(alpha = 0.75f), RoundedCornerShape(18.dp))
+                                        .padding(horizontal = 13.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        formatCountdown(nextPrayer.remainingMillis),
+                                        color = green,
+                                        fontSize = 25.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1
+                                    )
+                                }
+                                Text(
+                                    "الوقت المتبقي • ${nextPrayer.time}",
+                                    color = muted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            } else if (loading) {
+                                CircularProgressIndicator(color = green, modifier = Modifier.height(30.dp))
+                                Text(
+                                    "جاري تحميل المواقيت...",
+                                    color = green,
+                                    fontSize = 10.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            } else {
+                                Text(
+                                    if (locationName.isBlank()) "اختَر مدينتك لعرض الصلاة القادمة"
+                                    else errorMessage ?: "مواقيت الصلاة غير متاحة حاليًا",
+                                    color = green,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+
+                        Box(
+                            Modifier.width(1.dp).height(76.dp)
+                                .background(gold.copy(alpha = 0.55f))
+                        )
+
+                        Column(
+                            Modifier.weight(0.9f).clip(RoundedCornerShape(13.dp))
+                                .background(Color(0xFFF1E8D6))
+                                .padding(horizontal = 3.dp, vertical = 9.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("التاريخ الهجري", color = green, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                hijriDate,
+                                color = green,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                lineHeight = 15.sp
                             )
                         }
                     }
@@ -223,10 +251,16 @@ internal fun PrayerSummaryCard(
                     Text(
                         locationName.ifBlank { "لم يتم اختيار مدينة" },
                         color = muted,
-                        style = MaterialTheme.typography.labelSmall
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
                     )
                     TextButton(onClick = onOpenPrayer) {
-                        Text("اختيار المدينة وإعدادات الصلاة", color = green, fontWeight = FontWeight.Bold)
+                        Text(
+                            "اختيار المدينة وإعدادات الصلاة",
+                            color = green,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
                     }
                 }
             }
@@ -241,14 +275,6 @@ internal fun PrayerSummaryCard(
                 Triple("العشاء", prayerTimes.isha, "🌙")
             )
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    "مواقيت الصلاة",
-                    Modifier.fillMaxWidth(),
-                    color = green,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleSmall
-                )
                 Card(
                     Modifier.fillMaxWidth().border(1.2.dp, gold, RoundedCornerShape(21.dp)),
                     shape = RoundedCornerShape(21.dp),
