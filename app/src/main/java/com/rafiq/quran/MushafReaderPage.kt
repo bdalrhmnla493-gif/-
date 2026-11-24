@@ -1,5 +1,6 @@
 package com.rafiq.quran
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -36,12 +38,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,11 +66,20 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rafiq.quran.data.MushafPageMetadata
 import com.rafiq.quran.data.MushafPageRepository
+import com.rafiq.quran.data.MushafBookmarkRepository
 import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSearchResult
 import com.rafiq.quran.data.QuranSurah
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
+private val MushafBookmarkedPagesKey = stringSetPreferencesKey("bookmarked_pages")
 
 private val MushafPaper = Color(0xFFFFFCF5)
 private val MushafInk = Color(0xFF1C211C)
@@ -83,6 +96,13 @@ fun MushafReaderPage(
     onSavePosition: (Int, Int) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val savedBookmarkKeys by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[MushafBookmarkedPagesKey] ?: emptySet() }
+        .collectAsState(initial = emptySet())
+    val bookmarkedPages = remember(savedBookmarkKeys) {
+        MushafBookmarkRepository.decode(savedBookmarkKeys)
+    }
     var metadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
@@ -119,6 +139,7 @@ fun MushafReaderPage(
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
     var showSurahIndex by rememberSaveable { mutableStateOf(false) }
     var showJuzIndex by rememberSaveable { mutableStateOf(false) }
+    var showBookmarksDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
@@ -192,6 +213,25 @@ fun MushafReaderPage(
         ) {
             IconButton(onClick = { showSearchDialog = true }, modifier = Modifier.size(42.dp)) {
                 Icon(Icons.Filled.Search, contentDescription = "البحث في القرآن", tint = MushafGreen)
+            }
+            IconButton(
+                onClick = {
+                    scope.launch {
+                        context.mushafBookmarkStore.edit { preferences ->
+                            preferences[MushafBookmarkedPagesKey] = MushafBookmarkRepository.toggle(
+                                preferences[MushafBookmarkedPagesKey] ?: emptySet(),
+                                pageNumber
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.size(42.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Bookmark,
+                    contentDescription = if (pageNumber in bookmarkedPages) "إزالة علامة الصفحة" else "حفظ الصفحة في العلامات",
+                    tint = if (pageNumber in bookmarkedPages) MushafGold else MushafGreen
+                )
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -428,6 +468,10 @@ fun MushafReaderPage(
                     }) { Text("فهرس الأجزاء") }
                     TextButton(onClick = {
                         showReaderMenu = false
+                        showBookmarksDialog = true
+                    }) { Text("العلامات المحفوظة") }
+                    TextButton(onClick = {
+                        showReaderMenu = false
                         showPageDialog = true
                     }) { Text("الانتقال إلى صفحة") }
                     TextButton(onClick = {
@@ -437,6 +481,44 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showBookmarksDialog) {
+        AlertDialog(
+            onDismissRequest = { showBookmarksDialog = false },
+            title = { Text("الصفحات المحفوظة") },
+            text = {
+                if (bookmarkedPages.isEmpty()) {
+                    Text("لم تحفظ أي صفحة بعد. اضغط علامة الكتاب أعلى المصحف لحفظ الصفحة الحالية.")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 440.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(bookmarkedPages.toList(), key = { it }) { savedPage ->
+                            val boundary = pageMap.pages[savedPage - 1]
+                            val surahName = surahs.firstOrNull { it.number == boundary.surah }?.name.orEmpty()
+                            TextButton(
+                                onClick = {
+                                    moveToPage(savedPage)
+                                    showBookmarksDialog = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "صفحة ${toArabicDigits(savedPage)}  •  ${surahName} ${toArabicDigits(boundary.ayah)}",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBookmarksDialog = false }) { Text("إغلاق") }
+            }
         )
     }
 
