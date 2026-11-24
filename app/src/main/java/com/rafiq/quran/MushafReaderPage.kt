@@ -113,7 +113,7 @@ fun MushafReaderPage(
 
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
-    var pageBitmap by remember(1) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var pageBitmap by remember(pageNumber) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
