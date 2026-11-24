@@ -1600,6 +1600,32 @@ fun MushafReaderPage(
                             onClick = {
                                 val targetSurah = selectedPickerSurah ?: return@TextButton
                                 val targetAyah = validPickerAyah ?: return@TextButton
+                                val shareText = "${targetAyah.text}\n(${targetSurah.name}: ${targetAyah.number})\nرفيق القرآن"
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("آية قرآنية", shareText))
+                                Toast.makeText(context, "تم نسخ الآية", Toast.LENGTH_SHORT).show()
+                            }
+                        ) { Text("نسخ الآية") }
+                        TextButton(
+                            enabled = selectedPickerSurah != null && validPickerAyah != null,
+                            onClick = {
+                                val targetSurah = selectedPickerSurah ?: return@TextButton
+                                val targetAyah = validPickerAyah ?: return@TextButton
+                                val shareText = "${targetAyah.text}\n(${targetSurah.name}: ${targetAyah.number})\nرفيق القرآن"
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "مشاركة الآية"))
+                            }
+                        ) { Text("مشاركة") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(
+                            enabled = selectedPickerSurah != null && validPickerAyah != null,
+                            onClick = {
+                                val targetSurah = selectedPickerSurah ?: return@TextButton
+                                val targetAyah = validPickerAyah ?: return@TextButton
                                 moveToAyah(targetSurah.number, targetAyah.number)
                                 showAyahPickerDialog = false
                             }
