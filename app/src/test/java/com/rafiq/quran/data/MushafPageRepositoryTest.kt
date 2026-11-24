@@ -22,6 +22,38 @@ class MushafPageRepositoryTest {
     """.trimIndent()
 
     @Test
+    fun acceptsOnlyComplete604PageAnd30JuzMetadata() {
+        val complete = MushafPageMetadata(
+            pages = (1..604).map { page ->
+                MushafPageBoundary(
+                    page = page,
+                    surah = if (page == 1) 1 else 2,
+                    ayah = page
+                )
+            },
+            juz = (1..30).map { index ->
+                MushafJuzBoundary(
+                    index = index,
+                    surah = if (index == 1) 1 else 2,
+                    ayah = index
+                )
+            }
+        )
+
+        MushafPageRepository.validateCompleteMushaf(complete)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncompleteMushafMetadata() {
+        val incomplete = MushafPageMetadata(
+            pages = listOf(MushafPageBoundary(1, 1, 1)),
+            juz = listOf(MushafJuzBoundary(1, 1, 1))
+        )
+
+        MushafPageRepository.validateCompleteMushaf(incomplete)
+    }
+
+    @Test
     fun parsesContiguousMushafPagesAndJuz() {
         val parsed = MushafPageRepository.parse(metadataJson)
         assertEquals(3, parsed.pages.size)
