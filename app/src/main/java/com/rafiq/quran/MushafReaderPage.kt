@@ -90,6 +90,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.rafiq.quran.data.MushafPageMetadata
 import com.rafiq.quran.data.MushafPageRepository
 import com.rafiq.quran.data.MushafBookmarkRepository
+import com.rafiq.quran.data.MushafNamedPageBookmark
+import com.rafiq.quran.data.MushafNamedPageBookmarkRepository
 import com.rafiq.quran.data.QuranFavoriteRepository
 import com.rafiq.quran.data.QuranFavoriteNote
 import com.rafiq.quran.data.QuranFavoriteNoteRepository
@@ -112,6 +114,7 @@ import java.util.UUID
 
 private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
 private val MushafBookmarkedPagesKey = stringSetPreferencesKey("bookmarked_pages")
+private val MushafNamedBookmarksKey = stringSetPreferencesKey("named_page_bookmarks")
 private val FavoriteAyahsKey = stringSetPreferencesKey("favorite_ayahs")
 private val FavoriteAyahNotesKey = stringSetPreferencesKey("favorite_ayah_notes")
 private val AyahBookmarksKey = stringSetPreferencesKey("ayah_bookmarks")
@@ -143,6 +146,16 @@ fun MushafReaderPage(
         .collectAsState(initial = emptySet())
     val bookmarkedPages = remember(savedBookmarkKeys) {
         MushafBookmarkRepository.decode(savedBookmarkKeys)
+    }
+
+    val savedNamedPageBookmarkKeys by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[MushafNamedBookmarksKey] ?: emptySet() }
+        .collectAsState(initial = emptySet())
+    val namedPageBookmarks = remember(savedNamedPageBookmarkKeys) {
+        MushafNamedPageBookmarkRepository.decode(savedNamedPageBookmarkKeys)
+    }
+    val allBookmarkedPages = remember(bookmarkedPages, namedPageBookmarks) {
+        (bookmarkedPages + namedPageBookmarks.map { it.pageNumber }).toSortedSet()
     }
     val savedFavoriteKeys by context.mushafBookmarkStore.data
         .map { preferences -> preferences[FavoriteAyahsKey] ?: emptySet() }
@@ -218,6 +231,12 @@ fun MushafReaderPage(
     var showSurahIndex by rememberSaveable { mutableStateOf(false) }
     var showJuzIndex by rememberSaveable { mutableStateOf(false) }
     var showBookmarksDialog by rememberSaveable { mutableStateOf(false) }
+    var showSavePageBookmarkDialog by rememberSaveable { mutableStateOf(false) }
+    var editingPageBookmarkId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingPageBookmarkNumber by rememberSaveable { mutableIntStateOf(1) }
+    var pageBookmarkName by rememberSaveable { mutableStateOf("") }
+    var pageBookmarkColorHex by rememberSaveable { mutableStateOf("#B99A60") }
+    var pageBookmarkSearchQuery by rememberSaveable { mutableStateOf("") }
     var showAyahBookmarksDialog by rememberSaveable { mutableStateOf(false) }
     var showSaveAyahBookmarkDialog by rememberSaveable { mutableStateOf(false) }
     var pendingBookmarkSurah by rememberSaveable { mutableIntStateOf(1) }
@@ -371,7 +390,7 @@ fun MushafReaderPage(
     }
 
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
-        showBookmarksDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
+        showBookmarksDialog || showSavePageBookmarkDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
         showFavoritesDialog || showFavoriteNoteDialog || showSurahInfoDialog || showReaderMenu ||
         showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
 
@@ -430,21 +449,35 @@ fun MushafReaderPage(
             }
             IconButton(
                 onClick = {
-                    scope.launch {
-                        context.mushafBookmarkStore.edit { preferences ->
-                            preferences[MushafBookmarkedPagesKey] = MushafBookmarkRepository.toggle(
-                                preferences[MushafBookmarkedPagesKey] ?: emptySet(),
-                                pageNumber
-                            )
+                    if (pageNumber in allBookmarkedPages) {
+                        scope.launch {
+                            context.mushafBookmarkStore.edit { preferences ->
+                                val legacy = preferences[MushafBookmarkedPagesKey] ?: emptySet()
+                                if (pageNumber in MushafBookmarkRepository.decode(legacy)) {
+                                    preferences[MushafBookmarkedPagesKey] =
+                                        MushafBookmarkRepository.toggle(legacy, pageNumber)
+                                }
+                                preferences[MushafNamedBookmarksKey] =
+                                    MushafNamedPageBookmarkRepository.removePage(
+                                        preferences[MushafNamedBookmarksKey] ?: emptySet(),
+                                        pageNumber
+                                    )
+                            }
                         }
+                    } else {
+                        editingPageBookmarkId = null
+                        pendingPageBookmarkNumber = pageNumber
+                        pageBookmarkName = "صفحة ${toArabicDigits(pageNumber)}"
+                        pageBookmarkColorHex = "#B99A60"
+                        showSavePageBookmarkDialog = true
                     }
                 },
                 modifier = Modifier.size(42.dp)
             ) {
                 Icon(
                     Icons.Filled.Bookmark,
-                    contentDescription = if (pageNumber in bookmarkedPages) "إزالة علامة الصفحة" else "حفظ الصفحة في العلامات",
-                    tint = if (pageNumber in bookmarkedPages) MushafGold else MushafGreen
+                    contentDescription = if (pageNumber in allBookmarkedPages) "إزالة علامة الصفحة" else "حفظ الصفحة في العلامات",
+                    tint = if (pageNumber in allBookmarkedPages) MushafGold else MushafGreen
                 )
             }
             Column(
@@ -1012,39 +1045,107 @@ fun MushafReaderPage(
     }
 
     if (showBookmarksDialog) {
+        val filteredPageBookmarks = allBookmarkedPages.filter { savedPage ->
+            val boundary = pageMap.pages[savedPage - 1]
+            val surahName = surahs.firstOrNull { it.number == boundary.surah }?.name.orEmpty()
+            val savedName = namedPageBookmarks.firstOrNull { it.pageNumber == savedPage }?.label.orEmpty()
+            pageBookmarkSearchQuery.isBlank() ||
+                savedPage.toString() == pageBookmarkSearchQuery.trim() ||
+                savedName.contains(pageBookmarkSearchQuery.trim(), ignoreCase = true) ||
+                surahName.contains(pageBookmarkSearchQuery.trim(), ignoreCase = true)
+        }
         AlertDialog(
-            onDismissRequest = { showBookmarksDialog = false },
+            onDismissRequest = {
+                showBookmarksDialog = false
+                pageBookmarkSearchQuery = ""
+            },
             title = { Text("الصفحات المحفوظة") },
             text = {
-                if (bookmarkedPages.isEmpty()) {
-                    Text("لم تحفظ أي صفحة بعد. اضغط علامة الكتاب أعلى المصحف لحفظ الصفحة الحالية.")
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 440.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(bookmarkedPages.toList(), key = { it }) { savedPage ->
-                            val boundary = pageMap.pages[savedPage - 1]
-                            val surahName = surahs.firstOrNull { it.number == boundary.surah }?.name.orEmpty()
-                            TextButton(
-                                onClick = {
-                                    moveToPage(savedPage)
-                                    showBookmarksDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "صفحة ${toArabicDigits(savedPage)}  •  ${surahName} ${toArabicDigits(boundary.ayah)}",
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = pageBookmarkSearchQuery,
+                        onValueChange = { pageBookmarkSearchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("ابحث باسم العلامة أو السورة أو رقم الصفحة") }
+                    )
+                    if (filteredPageBookmarks.isEmpty()) {
+                        Text(
+                            if (allBookmarkedPages.isEmpty()) {
+                                "لم تحفظ أي صفحة بعد. اضغط علامة الصفحة أعلى المصحف لحفظ الصفحة الحالية."
+                            } else {
+                                "لا توجد صفحة تطابق البحث."
+                            }
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(filteredPageBookmarks, key = { it }) { savedPage ->
+                                val boundary = pageMap.pages[savedPage - 1]
+                                val surahName = surahs.firstOrNull { it.number == boundary.surah }?.name.orEmpty()
+                                val namedBookmark = namedPageBookmarks.firstOrNull { it.pageNumber == savedPage }
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.End
-                                )
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "●",
+                                        color = Color(
+                                            android.graphics.Color.parseColor(
+                                                namedBookmark?.colorHex ?: "#B99A60"
+                                            )
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            moveToPage(savedPage)
+                                            showBookmarksDialog = false
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalAlignment = Alignment.End
+                                        ) {
+                                            Text(
+                                                namedBookmark?.label ?: "صفحة ${toArabicDigits(savedPage)}",
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.End
+                                            )
+                                            Text(
+                                                "صفحة ${toArabicDigits(savedPage)} • ${surahName} ${toArabicDigits(boundary.ayah)}",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                textAlign = TextAlign.End
+                                            )
+                                        }
+                                    }
+                                    if (namedBookmark != null) {
+                                        IconButton(onClick = {
+                                            editingPageBookmarkId = namedBookmark.id
+                                            pendingPageBookmarkNumber = namedBookmark.pageNumber
+                                            pageBookmarkName = namedBookmark.label
+                                            pageBookmarkColorHex = namedBookmark.colorHex
+                                            showBookmarksDialog = false
+                                            showSavePageBookmarkDialog = true
+                                        }) {
+                                            Icon(Icons.Filled.Edit, contentDescription = "تعديل علامة الصفحة")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showBookmarksDialog = false }) { Text("إغلاق") }
+                TextButton(onClick = {
+                    showBookmarksDialog = false
+                    pageBookmarkSearchQuery = ""
+                }) { Text("إغلاق") }
             }
         )
     }
@@ -1417,6 +1518,76 @@ fun MushafReaderPage(
                 TextButton(onClick = {
                     editingAyahBookmarkId = null
                     showSaveAyahBookmarkDialog = false
+                }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (showSavePageBookmarkDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                editingPageBookmarkId = null
+                showSavePageBookmarkDialog = false
+            },
+            title = { Text(if (editingPageBookmarkId == null) "حفظ علامة للصفحة" else "تعديل علامة الصفحة") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("صفحة ${toArabicDigits(pendingPageBookmarkNumber)}")
+                    OutlinedTextField(
+                        value = pageBookmarkName,
+                        onValueChange = { pageBookmarkName = it.take(80) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("اسم العلامة") }
+                    )
+                    Text("لون العلامة")
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("#B99A60", "#2E7D5B", "#4776B8", "#9A5AA6", "#C66A43").forEach { colorHex ->
+                            TextButton(
+                                onClick = { pageBookmarkColorHex = colorHex },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    if (pageBookmarkColorHex == colorHex) "✓" else "●",
+                                    color = Color(android.graphics.Color.parseColor(colorHex))
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = pageBookmarkName.isNotBlank(),
+                    onClick = {
+                        val existing = namedPageBookmarks.firstOrNull {
+                            it.id == editingPageBookmarkId
+                        }
+                        val bookmark = MushafNamedPageBookmark(
+                            id = existing?.id ?: UUID.randomUUID().toString(),
+                            pageNumber = pendingPageBookmarkNumber,
+                            label = pageBookmarkName.trim(),
+                            colorHex = pageBookmarkColorHex,
+                            createdAtMillis = existing?.createdAtMillis ?: System.currentTimeMillis()
+                        )
+                        scope.launch {
+                            context.mushafBookmarkStore.edit { preferences ->
+                                preferences[MushafNamedBookmarksKey] =
+                                    MushafNamedPageBookmarkRepository.add(
+                                        preferences[MushafNamedBookmarksKey] ?: emptySet(),
+                                        bookmark
+                                    )
+                            }
+                        }
+                        editingPageBookmarkId = null
+                        showSavePageBookmarkDialog = false
+                    }
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    editingPageBookmarkId = null
+                    showSavePageBookmarkDialog = false
                 }) { Text("إلغاء") }
             }
         )
