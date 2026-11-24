@@ -150,6 +150,7 @@ fun MushafReaderPage(
     var showSurahIndex by rememberSaveable { mutableStateOf(false) }
     var showJuzIndex by rememberSaveable { mutableStateOf(false) }
     var showBookmarksDialog by rememberSaveable { mutableStateOf(false) }
+    var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var pageInput by rememberSaveable { mutableStateOf("") }
@@ -249,7 +250,7 @@ fun MushafReaderPage(
                 )
             }
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).clickable { showSurahInfoDialog = true },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -502,6 +503,10 @@ fun MushafReaderPage(
                         showJuzIndex = true
                     }) { Text("فهرس الأجزاء") }
                     TextButton(onClick = {
+                        showSurahInfoDialog = true
+                        showReaderMenu = false
+                    }) { Text("معلومات السورة الحالية") }
+                    TextButton(onClick = {
                         pageZoom = (pageZoom + 0.25f).coerceAtMost(2.5f)
                         showReaderMenu = false
                     }) { Text("تكبير الصفحة") }
@@ -530,6 +535,30 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showSurahInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showSurahInfoDialog = false },
+            title = { Text("معلومات السورة") },
+            text = {
+                if (currentSurah == null) {
+                    Text("معلومات السورة غير متاحة حاليًا.")
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("الاسم: ${currentSurah.name}", fontWeight = FontWeight.Bold)
+                        Text("رقم السورة: ${toArabicDigits(currentSurah.number)}")
+                        Text("عدد الآيات: ${toArabicDigits(currentSurah.ayahs.size)}")
+                        Text("نوع النزول بحسب بيانات المصحف: ${currentSurah.revelationType}")
+                        Text("الاسم بالإنجليزية: ${currentSurah.englishName}")
+                        Text("النقل الصوتي للاسم: ${currentSurah.transliteration}")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSurahInfoDialog = false }) { Text("إغلاق") }
+            }
         )
     }
 
