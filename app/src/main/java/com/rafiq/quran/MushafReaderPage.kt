@@ -550,7 +550,10 @@ fun MushafReaderPage(
             onDismissRequest = { showReaderMenu = false },
             title = { Text("قائمة المصحف") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     TextButton(onClick = {
                         showReaderMenu = false
                         showSurahIndex = true
