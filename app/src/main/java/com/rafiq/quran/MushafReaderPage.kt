@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -130,6 +131,8 @@ private val AutoFlipDirectionKey = intPreferencesKey("auto_flip_direction")
 private val ReaderThemeKey = stringPreferencesKey("reader_theme")
 private val KeepScreenAwakeKey = booleanPreferencesKey("keep_screen_awake")
 private val ShowPageFrameKey = booleanPreferencesKey("show_page_frame")
+private val ShowLandscapeSpreadKey = booleanPreferencesKey("show_landscape_spread")
+private val ReaderFlipAxisKey = stringPreferencesKey("reader_flip_axis")
 
 private val MushafPaper = Color(0xFFFFFCF5)
 private val MushafInk = Color(0xFF1C211C)
@@ -207,6 +210,18 @@ fun MushafReaderPage(
         .map { preferences -> preferences[ShowPageFrameKey] ?: true }
         .collectAsState(initial = true)
 
+    val showLandscapeSpread by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[ShowLandscapeSpreadKey] ?: true }
+        .collectAsState(initial = true)
+    val readerFlipAxis by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[ReaderFlipAxisKey] ?: "horizontal" }
+        .collectAsState(initial = "horizontal")
+    val systemDarkTheme = isSystemInDarkTheme()
+    val effectiveReaderTheme = when (effectiveReaderTheme) {
+        "system" -> if (systemDarkTheme) "night" else "paper"
+        else -> readerTheme
+    }
+
     val readerStageColor = when (readerTheme) {
         "warm" -> Color(0xFFE9D9B9)
         "night" -> Color(0xFF171D19)
@@ -270,7 +285,6 @@ fun MushafReaderPage(
     var pageZoom by rememberSaveable { mutableFloatStateOf(1f) }
     var pageOffset by remember { mutableStateOf(Offset.Zero) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
-    var showLandscapeSpread by rememberSaveable { mutableStateOf(true) }
     var pageBitmap by remember(pageNumber) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var pairedPageBitmap by remember(pageNumber, isLandscape, showLandscapeSpread) {
         mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)
@@ -581,6 +595,7 @@ fun MushafReaderPage(
                     viewportSize,
                     isLandscape,
                     showLandscapeSpread,
+                    readerFlipAxis,
                     readerFullScreen
                 ) {
                     awaitEachGesture {
@@ -589,6 +604,7 @@ fun MushafReaderPage(
                         autoFlipPauseToken++
                         val startingZoom = pageZoom
                         var totalHorizontalPan = 0f
+                        var totalVerticalPan = 0f
                         var usedMultiplePointers = false
                         var pointerMoved = false
                         try {
@@ -629,6 +645,8 @@ fun MushafReaderPage(
                                         candidateOffset.y.coerceIn(-maxY, maxY)
                                     )
                                 }
+                            } else if (readerFlipAxis == "vertical") {
+                                totalVerticalPan += panChange.y
                             } else {
                                 totalHorizontalPan += panChange.x
                             }
@@ -646,13 +664,16 @@ fun MushafReaderPage(
                         if (!pointerMoved && !usedMultiplePointers && readerFullScreen) {
                             showReaderControls = !showReaderControls
                         } else if (!usedMultiplePointers && startingZoom <= 1f && pageZoom <= 1f) {
+                            val step = if (isLandscape && showLandscapeSpread) 2 else 1
                             when {
-                                totalHorizontalPan < -55f -> moveToPage(
-                                    pageNumber + if (isLandscape && showLandscapeSpread) 2 else 1
-                                )
-                                totalHorizontalPan > 55f -> moveToPage(
-                                    pageNumber - if (isLandscape && showLandscapeSpread) 2 else 1
-                                )
+                                readerFlipAxis == "vertical" && totalVerticalPan < -55f ->
+                                    moveToPage(pageNumber + step)
+                                readerFlipAxis == "vertical" && totalVerticalPan > 55f ->
+                                    moveToPage(pageNumber - step)
+                                readerFlipAxis != "vertical" && totalHorizontalPan < -55f ->
+                                    moveToPage(pageNumber + step)
+                                readerFlipAxis != "vertical" && totalHorizontalPan > 55f ->
+                                    moveToPage(pageNumber - step)
                             }
                         }
                     }
@@ -830,7 +851,11 @@ fun MushafReaderPage(
                     }) { Text("فهرس الصفحات") }
                     if (isLandscape) {
                         TextButton(onClick = {
-                            showLandscapeSpread = !showLandscapeSpread
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[ShowLandscapeSpreadKey] = !showLandscapeSpread
+                                }
+                            }
                             showReaderMenu = false
                         }) {
                             Text(
@@ -980,6 +1005,7 @@ fun MushafReaderPage(
                 ) {
                     Text("مظهر مساحة القراءة")
                     listOf(
+                        "system" to "حسب إعداد الجهاز",
                         "paper" to "ورقي فاتح",
                         "warm" to "ورقي دافئ",
                         "night" to "داكن"
@@ -1022,6 +1048,28 @@ fun MushafReaderPage(
                             textAlign = TextAlign.End
                         )
                     }
+                    Text("اتجاه تقليب الصفحات")
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[ReaderFlipAxisKey] =
+                                        if (readerFlipAxis == "horizontal") "vertical" else "horizontal"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (readerFlipAxis == "horizontal") {
+                                "✓ أفقي (يمين/يسار) • اضغط للتغيير إلى رأسي"
+                            } else {
+                                "✓ رأسي (أعلى/أسفل) • اضغط للتغيير إلى أفقي"
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.End
+                        )
+                    }
                     TextButton(
                         onClick = {
                             scope.launch {
@@ -1042,9 +1090,11 @@ fun MushafReaderPage(
                         onClick = {
                             scope.launch {
                                 context.mushafBookmarkStore.edit { preferences ->
-                                    preferences[ReaderThemeKey] = "paper"
+                                    preferences[ReaderThemeKey] = "system"
                                     preferences[ShowPageFrameKey] = true
                                     preferences[KeepScreenAwakeKey] = false
+                                    preferences[ShowLandscapeSpreadKey] = true
+                                    preferences[ReaderFlipAxisKey] = "horizontal"
                                 }
                             }
                         },
