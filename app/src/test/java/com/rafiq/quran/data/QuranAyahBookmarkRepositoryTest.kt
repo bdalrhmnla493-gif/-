@@ -24,6 +24,18 @@ class QuranAyahBookmarkRepositoryTest {
     }
 
     @Test
+    fun addWithExistingIdUpdatesLabelAndColorWithoutChangingCreatedAt() {
+        val original = bookmark()
+        val updated = original.copy(label = "اسم معدل", colorHex = "#2E7D5B")
+        val saved = QuranAyahBookmarkRepository.add(
+            QuranAyahBookmarkRepository.add(emptySet(), original),
+            updated
+        )
+
+        assertEquals(listOf(updated), QuranAyahBookmarkRepository.decode(saved))
+    }
+
+    @Test
     fun removeDeletesOnlyTheRequestedBookmark() {
         val first = bookmark()
         val second = bookmark(id = "bookmark-2", surah = 1, ayah = 1, label = "الفاتحة")

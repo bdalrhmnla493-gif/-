@@ -222,6 +222,8 @@ fun MushafReaderPage(
     var showSaveAyahBookmarkDialog by rememberSaveable { mutableStateOf(false) }
     var pendingBookmarkSurah by rememberSaveable { mutableIntStateOf(1) }
     var pendingBookmarkAyah by rememberSaveable { mutableIntStateOf(1) }
+    var editingAyahBookmarkId by rememberSaveable { mutableStateOf<String?>(null) }
+    var ayahBookmarkSearchQuery by rememberSaveable { mutableStateOf("") }
     var ayahBookmarkName by rememberSaveable { mutableStateOf("") }
     var ayahBookmarkColorHex by rememberSaveable { mutableStateOf("#B99A60") }
     var showFavoritesDialog by rememberSaveable { mutableStateOf(false) }
@@ -1336,6 +1338,7 @@ fun MushafReaderPage(
                         onClick = {
                             pendingBookmarkSurah = selectedPickerSurah!!.number
                             pendingBookmarkAyah = validPickerAyah!!.number
+                            editingAyahBookmarkId = null
                             ayahBookmarkName = "${selectedPickerSurah.name} - الآية ${validPickerAyah.number}"
                             ayahBookmarkColorHex = "#B99A60"
                             showAyahPickerDialog = false
@@ -1353,7 +1356,7 @@ fun MushafReaderPage(
     if (showSaveAyahBookmarkDialog) {
         AlertDialog(
             onDismissRequest = { showSaveAyahBookmarkDialog = false },
-            title = { Text("حفظ علامة مرجعية للآية") },
+            title = { Text(if (editingAyahBookmarkId == null) "حفظ علامة مرجعية للآية" else "تعديل العلامة المرجعية") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -1386,13 +1389,16 @@ fun MushafReaderPage(
                 TextButton(
                     enabled = ayahBookmarkName.isNotBlank(),
                     onClick = {
+                        val existingBookmark = ayahBookmarks.firstOrNull {
+                            it.id == editingAyahBookmarkId
+                        }
                         val bookmark = QuranAyahBookmark(
-                            id = UUID.randomUUID().toString(),
+                            id = existingBookmark?.id ?: UUID.randomUUID().toString(),
                             surahNumber = pendingBookmarkSurah,
                             ayahNumber = pendingBookmarkAyah,
                             label = ayahBookmarkName.trim(),
                             colorHex = ayahBookmarkColorHex,
-                            createdAtMillis = System.currentTimeMillis()
+                            createdAtMillis = existingBookmark?.createdAtMillis ?: System.currentTimeMillis()
                         )
                         scope.launch {
                             context.mushafBookmarkStore.edit { preferences ->
@@ -1402,12 +1408,16 @@ fun MushafReaderPage(
                                 )
                             }
                         }
+                        editingAyahBookmarkId = null
                         showSaveAyahBookmarkDialog = false
                     }
                 ) { Text("حفظ") }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveAyahBookmarkDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = {
+                    editingAyahBookmarkId = null
+                    showSaveAyahBookmarkDialog = false
+                }) { Text("إلغاء") }
             }
         )
     }
@@ -1417,14 +1427,35 @@ fun MushafReaderPage(
             onDismissRequest = { showAyahBookmarksDialog = false },
             title = { Text("علامات الآيات المرجعية") },
             text = {
-                if (ayahBookmarks.isEmpty()) {
-                    Text("لا توجد علامات محفوظة. أضف علامة من قائمة اختيار السورة والآية.")
-                } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = ayahBookmarkSearchQuery,
+                        onValueChange = { ayahBookmarkSearchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("ابحث داخل العلامات") }
+                    )
+                    val filteredBookmarks = ayahBookmarks.filter { bookmark ->
+                        val surahName = surahs.firstOrNull { it.number == bookmark.surahNumber }?.name.orEmpty()
+                        ayahBookmarkSearchQuery.isBlank() ||
+                            bookmark.label.contains(ayahBookmarkSearchQuery.trim(), ignoreCase = true) ||
+                            surahName.contains(ayahBookmarkSearchQuery.trim(), ignoreCase = true) ||
+                            bookmark.ayahNumber.toString() == ayahBookmarkSearchQuery.trim()
+                    }
+                    if (filteredBookmarks.isEmpty()) {
+                        Text(
+                            if (ayahBookmarks.isEmpty()) {
+                                "لا توجد علامات محفوظة. أضف علامة من قائمة اختيار السورة والآية."
+                            } else {
+                                "لا توجد علامة تطابق البحث."
+                            }
+                        )
+                    } else {
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 460.dp),
+                        modifier = Modifier.heightIn(max = 420.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(ayahBookmarks, key = { it.id }) { bookmark ->
+                        items(filteredBookmarks, key = { it.id }) { bookmark ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1454,6 +1485,17 @@ fun MushafReaderPage(
                                 }
                                 TextButton(
                                     onClick = {
+                                        editingAyahBookmarkId = bookmark.id
+                                        pendingBookmarkSurah = bookmark.surahNumber
+                                        pendingBookmarkAyah = bookmark.ayahNumber
+                                        ayahBookmarkName = bookmark.label
+                                        ayahBookmarkColorHex = bookmark.colorHex
+                                        showAyahBookmarksDialog = false
+                                        showSaveAyahBookmarkDialog = true
+                                    }
+                                ) { Icon(Icons.Filled.Edit, contentDescription = "تعديل العلامة") }
+                                TextButton(
+                                    onClick = {
                                         scope.launch {
                                             context.mushafBookmarkStore.edit { preferences ->
                                                 preferences[AyahBookmarksKey] =
@@ -1468,10 +1510,14 @@ fun MushafReaderPage(
                             }
                         }
                     }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAyahBookmarksDialog = false }) { Text("إغلاق") }
+                TextButton(onClick = {
+                    showAyahBookmarksDialog = false
+                    ayahBookmarkSearchQuery = ""
+                }) { Text("إغلاق") }
             }
         )
     }
