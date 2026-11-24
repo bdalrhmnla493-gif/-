@@ -47,13 +47,26 @@ object MushafPageRepository {
         } == true) {
             "بداية صفحات المصحف غير مطابقة."
         }
-        require(metadata.pages.lastOrNull()?.page == 604) {
-            "نهاية صفحات المصحف غير مكتملة."
+        require(metadata.pages.map { it.page } == (1..604).toList()) {
+            "ترقيم صفحات المصحف غير متصل."
+        }
+        require(metadata.pages.lastOrNull()?.let {
+            it.page == 604 && it.surah == 112 && it.ayah == 1
+        } == true) {
+            "بداية الصفحة الأخيرة لا تطابق مصحف المدينة."
         }
         require(metadata.juz.firstOrNull()?.let {
             it.index == 1 && it.surah == 1 && it.ayah == 1
-        } == true && metadata.juz.lastOrNull()?.index == 30) {
-            "حدود الأجزاء الثلاثين غير مكتملة."
+        } == true) {
+            "بداية الأجزاء غير مطابقة."
+        }
+        require(metadata.juz.map { it.index } == (1..30).toList()) {
+            "ترقيم الأجزاء غير متصل."
+        }
+        require(metadata.juz.lastOrNull()?.let {
+            it.index == 30 && it.surah == 78 && it.ayah == 1
+        } == true) {
+            "بداية الجزء الثلاثين لا تطابق مصحف المدينة."
         }
     }
 
