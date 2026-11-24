@@ -144,6 +144,7 @@ fun RafiqApp() {
 
     RafiqTheme(darkTheme = darkTheme) {
         var tab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+        var readerFullScreen by rememberSaveable { mutableStateOf(false) }
         var surahs by remember { mutableStateOf<List<QuranSurah>?>(null) }
         var quranLoading by remember { mutableStateOf(false) }
         var quranError by remember { mutableStateOf<String?>(null) }
@@ -271,7 +272,8 @@ fun RafiqApp() {
                 }
             },
             bottomBar = {
-                NavigationBar(
+                if (!readerFullScreen) {
+                    NavigationBar(
                     containerColor = HomeGreen,
                     contentColor = Color.White
                 ) {
@@ -290,6 +292,7 @@ fun RafiqApp() {
                                 unselectedTextColor = Color(0xFFF2EAD8)
                             )
                         )
+                    }
                     }
                 }
             }
@@ -316,6 +319,8 @@ fun RafiqApp() {
                         error = quranError,
                         savedSurah = savedSurah,
                         savedAyah = savedAyah,
+                        readerFullScreen = readerFullScreen,
+                        onReaderFullScreenChange = { readerFullScreen = it },
                         retry = { retryCount++ },
                         savePosition = { surah, ayah ->
                             scope.launch {
@@ -984,6 +989,8 @@ private fun QuranPage(
     error: String?,
     savedSurah: Int,
     savedAyah: Int,
+    readerFullScreen: Boolean,
+    onReaderFullScreenChange: (Boolean) -> Unit,
     retry: () -> Unit,
     savePosition: (Int, Int) -> Unit
 ) {
@@ -997,7 +1004,12 @@ private fun QuranPage(
             surahs = surahs ?: emptyList(),
             initialSurah = active.number,
             initialAyah = pendingAyahNumber.coerceAtLeast(1),
-            onBack = { selectedSurah = 0 },
+            readerFullScreen = readerFullScreen,
+            onBack = {
+                selectedSurah = 0
+                onReaderFullScreenChange(false)
+            },
+            onReaderFullScreenChange = onReaderFullScreenChange,
             onSavePosition = savePosition
         )
     } else if (loading || (surahs == null && error == null)) {
