@@ -16,6 +16,40 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Prepare offline Madinah Mushaf pages
+        run: |
+          SOURCE_DIR="/tmp/rafiq-quran-images"
+          SOURCE_COMMIT="cca352724b9f29e326e077ce142172ddd9006368"
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/Miftah-Fentaw/Quran-Images.git "$SOURCE_DIR"
+          git -C "$SOURCE_DIR" fetch --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" checkout --detach "$SOURCE_COMMIT"
+          git -C "$SOURCE_DIR" sparse-checkout set png
+
+          DEST="app/src/main/assets/mushaf-pages"
+          mkdir -p "$DEST"
+          cp "$SOURCE_DIR"/png/*.png "$DEST"/
+          cp "$SOURCE_DIR/LICENSE" "$DEST/MIT-LICENSE.txt"
+
+          cat > "$DEST/ATTRIBUTION.txt" <<'EOF'
+          Madinah Mushaf page images (604 pages), Hafs narration.
+
+          Page-image archive:
+          Miftah-Fentaw/Quran-Images
+          Pinned source commit: cca352724b9f29e326e077ce142172ddd9006368
+          The archive is distributed under the MIT License. See MIT-LICENSE.txt.
+
+          Original Mushaf artwork and calligraphic source:
+          King Fahd Glorious Quran Printing Complex (KFGQPC), Al-Madinah.
+          The Complex's official digital-copy usage terms permit use in computer
+          programs, educational software, websites and similar digital products.
+          https://qurancomplex.gov.sa/mushaf-printing
+
+          The image archive credits Quran-PNG / quran.com-images as the source
+          of the rendered page artwork. Quran text is not modified by this app.
+          EOF
+
+          PAGE_COUNT="$(find "$DEST" -maxdepth 1 -type f -name '*.png' | wc -l)"
+          test "$PAGE_COUNT" -eq 604
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
