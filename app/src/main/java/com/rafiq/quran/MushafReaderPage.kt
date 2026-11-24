@@ -259,9 +259,34 @@ fun MushafReaderPage(
                         lineHeight = 36.sp
                     )
                 }
-                val pageText = remember(pageAyahs) {
+                val pageText = remember(pageAyahs, showBasmala, basmala) {
                     buildAnnotatedString {
                         pageAyahs.forEachIndexed { index, item ->
+                            val startsNewSurah = item.ayahNumber == 1 &&
+                                item.surahNumber != 1 && item.surahNumber != 9
+                            if (startsNewSurah && !(index == 0 && showBasmala)) {
+                                append("\n\n")
+                                pushStyle(
+                                    SpanStyle(
+                                        color = MushafGreen,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                append("سورة ${item.surahName}")
+                                pop()
+                                append("\n")
+                                pushStyle(
+                                    SpanStyle(
+                                        color = MushafInk,
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                )
+                                append(basmala)
+                                pop()
+                                append("\n")
+                            }
                             append(item.text)
                             append(" ")
                             pushStyle(SpanStyle(color = MushafGold, fontSize = 15.sp, fontWeight = FontWeight.Bold))
