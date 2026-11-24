@@ -222,22 +222,22 @@ fun MushafReaderPage(
         else -> readerTheme
     }
 
-    val readerStageColor = when (readerTheme) {
+    val readerStageColor = when (effectiveReaderTheme) {
         "warm" -> Color(0xFFE9D9B9)
         "night" -> Color(0xFF171D19)
         else -> Color(0xFFF4EFE4)
     }
-    val readerPanelColor = when (readerTheme) {
+    val readerPanelColor = when (effectiveReaderTheme) {
         "warm" -> Color(0xFFFFF2D8)
         "night" -> Color(0xFF242D27)
         else -> MushafPaper
     }
-    val readerFrameColor = when (readerTheme) {
+    val readerFrameColor = when (effectiveReaderTheme) {
         "warm" -> Color(0xFFC4A56C)
         "night" -> Color(0xFF53665A)
         else -> MushafGold
     }
-    val readerLineColor = when (readerTheme) {
+    val readerLineColor = when (effectiveReaderTheme) {
         "warm" -> Color(0xFFD4BD91)
         "night" -> Color(0xFF46564B)
         else -> MushafLine
