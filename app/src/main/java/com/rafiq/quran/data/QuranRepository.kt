@@ -26,6 +26,12 @@ internal data class ParsedQuranLine(
 )
 
 object QuranRepository {
+    internal fun validateSurahNumberOrder(surahNumbers: List<Int>) {
+        require(surahNumbers == (1..114).toList()) {
+            "ترتيب بيانات السور يجب أن يضم السور من 1 إلى 114 دون نقص أو تكرار."
+        }
+    }
+
     internal fun parseAyahLine(line: String): ParsedQuranLine? {
         val parts = line.split('|', limit = 3)
         if (parts.size != 3) return null
@@ -46,6 +52,10 @@ object QuranRepository {
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
         val metadata = JSONObject(metadataText).getJSONArray("surahs")
+        val metadataSurahNumbers = (0 until metadata.length()).map { index ->
+            metadata.getJSONObject(index).getInt("number")
+        }
+        validateSurahNumberOrder(metadataSurahNumbers)
 
         val ayahsBySurah = Array(115) { mutableListOf<QuranAyah>() }
         context.assets.open("quran-uthmani.txt")

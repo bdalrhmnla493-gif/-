@@ -6,6 +6,21 @@ import org.junit.Test
 
 class QuranRepositoryTest {
     @Test
+    fun acceptsCompleteSurahMetadataInMushafOrder() {
+        QuranRepository.validateSurahNumberOrder((1..114).toList())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsMissingSurahMetadata() {
+        QuranRepository.validateSurahNumberOrder((1..113).toList())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsDuplicatedOrOutOfOrderSurahMetadata() {
+        QuranRepository.validateSurahNumberOrder((1..113).toList() + 113)
+    }
+
+    @Test
     fun parsesAyahLineAndPreservesArabicText() {
         val parsed = QuranRepository.parseAyahLine("1|1|بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ")
         assertEquals(1, parsed?.surahNumber)
