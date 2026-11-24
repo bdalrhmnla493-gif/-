@@ -243,6 +243,7 @@ fun MushafReaderPage(
     var pickerAyahInput by rememberSaveable { mutableStateOf("1") }
     var pageInput by rememberSaveable { mutableStateOf("") }
     var searchInput by rememberSaveable { mutableStateOf("") }
+    var searchResultIndex by rememberSaveable { mutableIntStateOf(0) }
     var surahIndexQuery by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(pageMap, initialSurah, initialAyah) {
@@ -399,6 +400,10 @@ fun MushafReaderPage(
     val searchResults = remember(surahs, searchInput) {
         if (searchInput.isBlank()) emptyList()
         else QuranSearch.search(surahs, searchInput, limit = 30)
+    }
+
+    LaunchedEffect(searchInput) {
+        searchResultIndex = 0
     }
 
     Column(
@@ -1493,6 +1498,50 @@ fun MushafReaderPage(
                     if (searchInput.isNotBlank() && searchResults.isEmpty()) {
                         Text("لا توجد نتائج مطابقة.")
                     } else {
+                        if (searchResults.isNotEmpty()) {
+                            val selectedResult = searchResults.getOrNull(
+                                searchResultIndex.coerceIn(0, searchResults.lastIndex)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                TextButton(
+                                    enabled = searchResultIndex > 0,
+                                    onClick = {
+                                        searchResultIndex--
+                                        searchResults.getOrNull(searchResultIndex)?.let { result ->
+                                            moveToAyah(result.surahNumber, result.ayahNumber)
+                                        }
+                                    }
+                                ) { Text("السابق") }
+                                Text(
+                                    "نتيجة ${toArabicDigits(searchResultIndex + 1)} من ${toArabicDigits(searchResults.size)}",
+                                    color = MushafGreen,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                                TextButton(
+                                    enabled = searchResultIndex < searchResults.lastIndex,
+                                    onClick = {
+                                        searchResultIndex++
+                                        searchResults.getOrNull(searchResultIndex)?.let { result ->
+                                            moveToAyah(result.surahNumber, result.ayahNumber)
+                                        }
+                                    }
+                                ) { Text("التالي") }
+                            }
+                            selectedResult?.let { result ->
+                                Text(
+                                    "${result.surahName} • الآية ${toArabicDigits(result.ayahNumber)}",
+                                    color = MushafGreen,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                         LazyColumn(
                             modifier = Modifier.weight(1f, fill = false),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
