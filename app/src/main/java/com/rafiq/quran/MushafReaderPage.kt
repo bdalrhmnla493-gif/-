@@ -170,6 +170,9 @@ fun MushafReaderPage(
     var autoFlipSeconds by rememberSaveable { mutableIntStateOf(0) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
+    var showAyahPickerDialog by rememberSaveable { mutableStateOf(false) }
+    var pickerSurahNumber by rememberSaveable { mutableIntStateOf(initialSurah.coerceIn(1, 114)) }
+    var pickerAyahInput by rememberSaveable { mutableStateOf("1") }
     var pageInput by rememberSaveable { mutableStateOf("") }
     var searchInput by rememberSaveable { mutableStateOf("") }
 
@@ -247,7 +250,7 @@ fun MushafReaderPage(
 
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex ||
         showBookmarksDialog || showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
-        showSearchDialog || showAutoFlipDialog
+        showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
 
     LaunchedEffect(pageNumber, autoFlipSeconds, isReaderDialogOpen) {
         if (autoFlipSeconds > 0 && !isReaderDialogOpen) {
@@ -595,6 +598,12 @@ fun MushafReaderPage(
                         showBookmarksDialog = true
                     }) { Text("علامات الصفحات") }
                     TextButton(onClick = {
+                        pickerSurahNumber = currentBoundary.surah
+                        pickerAyahInput = currentBoundary.ayah.toString()
+                        showReaderMenu = false
+                        showAyahPickerDialog = true
+                    }) { Text("اختيار سورة وآية") }
+                    TextButton(onClick = {
                         showReaderMenu = false
                         showPageDialog = true
                     }) { Text("الانتقال إلى صفحة") }
@@ -843,6 +852,102 @@ fun MushafReaderPage(
             },
             dismissButton = {
                 TextButton(onClick = { showPageDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (showAyahPickerDialog) {
+        val selectedPickerSurah = surahs.firstOrNull { it.number == pickerSurahNumber }
+        val parsedPickerAyah = pickerAyahInput.mapNotNull { char ->
+            when (char) {
+                in '٠'..'٩' -> (char.code - '٠'.code).digitToIntOrNull()
+                in '0'..'9' -> char.digitToIntOrNull()
+                else -> null
+            }
+        }.joinToString("").toIntOrNull()
+        val validPickerAyah = selectedPickerSurah?.ayahs?.firstOrNull {
+            it.number == parsedPickerAyah
+        }
+        AlertDialog(
+            onDismissRequest = { showAyahPickerDialog = false },
+            title = { Text("اختيار سورة وآية") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("اختر السورة")
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 250.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(surahs, key = { it.number }) { surah ->
+                            TextButton(
+                                onClick = {
+                                    pickerSurahNumber = surah.number
+                                    pickerAyahInput = "1"
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "${if (surah.number == pickerSurahNumber) "✓  " else ""}${surah.name} • ${toArabicDigits(surah.ayahs.size)} آية",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.End,
+                                    color = if (surah.number == pickerSurahNumber) MushafGreen else MushafInk
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = pickerAyahInput,
+                        onValueChange = { value ->
+                            pickerAyahInput = value.filter { it.isDigit() || it in '٠'..'٩' }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("رقم الآية (١–${selectedPickerSurah?.ayahs?.size ?: 0})") }
+                    )
+                    if (parsedPickerAyah != null && validPickerAyah == null) {
+                        Text("رقم الآية غير موجود في السورة المختارة.", color = MaterialTheme.colorScheme.error)
+                    }
+                    if (validPickerAyah != null) {
+                        Text(validPickerAyah.text, color = MushafInk, textAlign = TextAlign.End)
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(
+                        enabled = selectedPickerSurah != null && validPickerAyah != null,
+                        onClick = {
+                            val targetSurah = selectedPickerSurah ?: return@TextButton
+                            val targetAyah = validPickerAyah ?: return@TextButton
+                            moveToPage(
+                                MushafPageRepository.findPageNumber(
+                                    pageMap.pages, targetSurah.number, targetAyah.number
+                                )
+                            )
+                            onSavePosition(targetSurah.number, targetAyah.number)
+                            showAyahPickerDialog = false
+                        }
+                    ) { Text("فتح الآية") }
+                    TextButton(
+                        enabled = selectedPickerSurah != null && validPickerAyah != null,
+                        onClick = {
+                            val targetSurah = selectedPickerSurah ?: return@TextButton
+                            val targetAyah = validPickerAyah ?: return@TextButton
+                            toggleFavorite(
+                                QuranSearchResult(
+                                    targetSurah.number,
+                                    targetSurah.name,
+                                    targetAyah.number,
+                                    targetAyah.text
+                                )
+                            )
+                            showAyahPickerDialog = false
+                        }
+                    ) { Text("حفظ كمفضلة") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAyahPickerDialog = false }) { Text("إلغاء") }
             }
         )
     }
