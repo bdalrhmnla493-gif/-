@@ -433,7 +433,7 @@ fun MushafReaderPage(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(5.dp))
                 .onSizeChanged { viewportSize = it }
-                .pointerInput(pageNumber, viewportSize) {
+                .pointerInput(pageNumber, viewportSize, isLandscape, showLandscapeSpread) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false)
                         val startingZoom = pageZoom
