@@ -54,12 +54,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -85,6 +87,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rafiq.quran.data.MushafPageMetadata
@@ -101,8 +104,10 @@ import com.rafiq.quran.data.QuranAyahBookmarkRepository
 import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSearchResult
 import com.rafiq.quran.data.QuranSurah
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +125,9 @@ private val FavoriteAyahNotesKey = stringSetPreferencesKey("favorite_ayah_notes"
 private val AyahBookmarksKey = stringSetPreferencesKey("ayah_bookmarks")
 private val AutoFlipSecondsKey = intPreferencesKey("auto_flip_seconds")
 private val AutoFlipDirectionKey = intPreferencesKey("auto_flip_direction")
+private val ReaderThemeKey = stringPreferencesKey("reader_theme")
+private val KeepScreenAwakeKey = booleanPreferencesKey("keep_screen_awake")
+private val ShowPageFrameKey = booleanPreferencesKey("show_page_frame")
 
 private val MushafPaper = Color(0xFFFFFCF5)
 private val MushafInk = Color(0xFF1C211C)
@@ -184,6 +192,43 @@ fun MushafReaderPage(
     val autoFlipDirection by context.mushafBookmarkStore.data
         .map { preferences -> preferences[AutoFlipDirectionKey] ?: 1 }
         .collectAsState(initial = 1)
+
+    val readerTheme by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[ReaderThemeKey] ?: "paper" }
+        .collectAsState(initial = "paper")
+    val keepScreenAwake by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[KeepScreenAwakeKey] ?: false }
+        .collectAsState(initial = false)
+    val showPageFrame by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[ShowPageFrameKey] ?: true }
+        .collectAsState(initial = true)
+
+    val readerStageColor = when (readerTheme) {
+        "warm" -> Color(0xFFE9D9B9)
+        "night" -> Color(0xFF171D19)
+        else -> Color(0xFFF4EFE4)
+    }
+    val readerPanelColor = when (readerTheme) {
+        "warm" -> Color(0xFFFFF2D8)
+        "night" -> Color(0xFF242D27)
+        else -> MushafPaper
+    }
+    val readerFrameColor = when (readerTheme) {
+        "warm" -> Color(0xFFC4A56C)
+        "night" -> Color(0xFF53665A)
+        else -> MushafGold
+    }
+    val readerLineColor = when (readerTheme) {
+        "warm" -> Color(0xFFD4BD91)
+        "night" -> Color(0xFF46564B)
+        else -> MushafLine
+    }
+
+    val readerView = LocalView.current
+    DisposableEffect(readerView, keepScreenAwake) {
+        readerView.keepScreenOn = keepScreenAwake
+        onDispose { readerView.keepScreenOn = false }
+    }
     var metadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
@@ -253,6 +298,7 @@ fun MushafReaderPage(
     var favoriteNoteColorHex by rememberSaveable { mutableStateOf("#B99A60") }
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
+    var showReaderSettingsDialog by rememberSaveable { mutableStateOf(false) }
     var autoFlipPauseToken by remember { mutableIntStateOf(0) }
     var isTouchingPage by remember { mutableStateOf(false) }
     var showReaderControls by rememberSaveable { mutableStateOf(!readerFullScreen) }
@@ -392,7 +438,7 @@ fun MushafReaderPage(
     val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
         showBookmarksDialog || showSavePageBookmarkDialog || showAyahBookmarksDialog || showSaveAyahBookmarkDialog ||
         showFavoritesDialog || showFavoriteNoteDialog || showSurahInfoDialog || showReaderMenu ||
-        showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
+        showSearchDialog || showAutoFlipDialog || showReaderSettingsDialog || showAyahPickerDialog
 
     LaunchedEffect(
         pageNumber,
@@ -430,7 +476,7 @@ fun MushafReaderPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF4EFE4))
+            .background(readerStageColor)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -439,8 +485,8 @@ fun MushafReaderPage(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .background(MushafPaper, RoundedCornerShape(14.dp))
-                .border(1.dp, MushafLine, RoundedCornerShape(14.dp)),
+                .background(readerPanelColor, RoundedCornerShape(14.dp))
+                .border(1.dp, readerLineColor, RoundedCornerShape(14.dp)),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround
         ) {
@@ -594,8 +640,12 @@ fun MushafReaderPage(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MushafPaper, RoundedCornerShape(5.dp))
-                    .border(2.dp, MushafGold, RoundedCornerShape(5.dp))
+                    .background(readerPanelColor, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (showPageFrame) 2.dp else 0.dp,
+                        color = if (showPageFrame) readerFrameColor else Color.Transparent,
+                        shape = RoundedCornerShape(5.dp)
+                    )
                     .graphicsLayer {
                         scaleX = pageZoom
                         scaleY = pageZoom
@@ -603,7 +653,11 @@ fun MushafReaderPage(
                         translationY = pageOffset.y
                     }
                     .padding(5.dp)
-                    .border(1.dp, MushafLine, RoundedCornerShape(3.dp))
+                    .border(
+                        width = if (showPageFrame) 1.dp else 0.dp,
+                        color = if (showPageFrame) readerLineColor else Color.Transparent,
+                        shape = RoundedCornerShape(3.dp)
+                    )
                     .padding(horizontal = 13.dp, vertical = 9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -674,7 +728,7 @@ fun MushafReaderPage(
                 }
 
                 if (pageBitmap == null) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(readerLineColor))
                     Row(
                         modifier = Modifier.fillMaxWidth().height(28.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -775,6 +829,10 @@ fun MushafReaderPage(
                         showReaderMenu = false
                     }) { Text("معلومات السورة الحالية") }
                     TextButton(onClick = {
+                        showReaderSettingsDialog = true
+                        showReaderMenu = false
+                    }) { Text("إعدادات المصحف") }
+                    TextButton(onClick = {
                         pageZoom = (pageZoom + 0.25f).coerceAtMost(4f)
                         showReaderMenu = false
                     }) { Text("تكبير الصفحة") }
@@ -817,6 +875,97 @@ fun MushafReaderPage(
                 }
             },
             confirmButton = { TextButton(onClick = { showReaderMenu = false }) { Text("إغلاق") } }
+        )
+    }
+
+    if (showReaderSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showReaderSettingsDialog = false },
+            title = { Text("إعدادات المصحف") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("مظهر مساحة القراءة")
+                    listOf(
+                        "paper" to "ورقي فاتح",
+                        "warm" to "ورقي دافئ",
+                        "night" to "داكن"
+                    ).forEach { (value, label) ->
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    context.mushafBookmarkStore.edit { preferences ->
+                                        preferences[ReaderThemeKey] = value
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                (if (readerTheme == value) "✓ " else "") + label,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
+                    Text(
+                        "تغيير المظهر يؤثر على مساحة القراءة والإطار فقط. صورة صفحة المصحف الأصلية لا يتم تلوينها أو تعديلها.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[ShowPageFrameKey] = !showPageFrame
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (showPageFrame) "✓ إظهار إطار الصفحة" else "إظهار إطار الصفحة",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[KeepScreenAwakeKey] = !keepScreenAwake
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (keepScreenAwake) "✓ إبقاء الشاشة مضاءة أثناء القراءة" else "إبقاء الشاشة مضاءة أثناء القراءة",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.End
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[ReaderThemeKey] = "paper"
+                                    preferences[ShowPageFrameKey] = true
+                                    preferences[KeepScreenAwakeKey] = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("إعادة الإعدادات الافتراضية")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReaderSettingsDialog = false }) { Text("تم") }
+            }
         )
     }
 
