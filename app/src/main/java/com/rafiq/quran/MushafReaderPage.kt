@@ -1,5 +1,7 @@
 package com.rafiq.quran
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -109,6 +113,7 @@ fun MushafReaderPage(
 
     val pageMap = metadata ?: return
     var pageNumber by rememberSaveable(initialSurah, initialAyah) { mutableIntStateOf(1) }
+    var pageBitmap by remember(1) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     var initialPageReady by rememberSaveable(initialSurah, initialAyah) { mutableStateOf(false) }
     var showPageDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
@@ -123,6 +128,18 @@ fun MushafReaderPage(
             initialAyah.coerceAtLeast(1)
         )
         initialPageReady = true
+    }
+
+    LaunchedEffect(context, pageNumber) {
+        pageBitmap = withContext(Dispatchers.IO) {
+            try {
+                context.assets.open("mushaf-pages/$pageNumber.png").use { stream ->
+                    BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     val currentBoundary = pageMap.pages.getOrNull(pageNumber - 1) ?: pageMap.pages.first()
@@ -225,95 +242,107 @@ fun MushafReaderPage(
                     .padding(horizontal = 13.dp, vertical = 9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(28.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("۞", color = MushafGold, fontSize = 20.sp)
-                    Text(
-                        currentSurah?.name ?: "سورة",
-                        color = MushafGreen,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                if (pageBitmap != null) {
+                    Image(
+                        bitmap = pageBitmap!!,
+                        contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 3.dp, vertical = 3.dp),
+                        contentScale = ContentScale.Fit
                     )
-                    Text(
-                        "الجزء ${toArabicDigits(currentJuz)}",
-                        color = MushafGreen,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text("۞", color = MushafGold, fontSize = 20.sp)
-                }
-                Spacer(Modifier.height(5.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
-                if (showBasmala && basmala.isNotBlank()) {
-                    Text(
-                        text = basmala,
-                        modifier = Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 4.dp),
-                        color = MushafInk,
-                        textAlign = TextAlign.Center,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 23.sp,
-                        lineHeight = 36.sp
-                    )
-                }
-                val pageText = remember(pageAyahs, showBasmala, basmala) {
-                    buildAnnotatedString {
-                        pageAyahs.forEachIndexed { index, item ->
-                            val startsNewSurah = item.ayahNumber == 1 &&
-                                item.surahNumber != 1 && item.surahNumber != 9
-                            if (startsNewSurah && !(index == 0 && showBasmala)) {
-                                append("\n\n")
-                                pushStyle(
-                                    SpanStyle(
-                                        color = MushafGreen,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(28.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("۞", color = MushafGold, fontSize = 20.sp)
+                        Text(
+                            currentSurah?.name ?: "سورة",
+                            color = MushafGreen,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "الجزء ${toArabicDigits(currentJuz)}",
+                            color = MushafGreen,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text("۞", color = MushafGold, fontSize = 20.sp)
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
+                    if (showBasmala && basmala.isNotBlank()) {
+                        Text(
+                            text = basmala,
+                            modifier = Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 4.dp),
+                            color = MushafInk,
+                            textAlign = TextAlign.Center,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 23.sp,
+                            lineHeight = 36.sp
+                        )
+                    }
+                    val pageText = remember(pageAyahs, showBasmala, basmala) {
+                        buildAnnotatedString {
+                            pageAyahs.forEachIndexed { index, item ->
+                                val startsNewSurah = item.ayahNumber == 1 &&
+                                    item.surahNumber != 1 && item.surahNumber != 9
+                                if (startsNewSurah && !(index == 0 && showBasmala)) {
+                                    append("\n\n")
+                                    pushStyle(
+                                        SpanStyle(
+                                            color = MushafGreen,
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     )
-                                )
-                                append("سورة ${item.surahName}")
-                                pop()
-                                append("\n")
-                                pushStyle(
-                                    SpanStyle(
-                                        color = MushafInk,
-                                        fontSize = 19.sp,
-                                        fontWeight = FontWeight.Medium
+                                    append("سورة ${item.surahName}")
+                                    pop()
+                                    append("\n")
+                                    pushStyle(
+                                        SpanStyle(
+                                            color = MushafInk,
+                                            fontSize = 19.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     )
-                                )
-                                append(basmala)
+                                    append(basmala)
+                                    pop()
+                                    append("\n")
+                                }
+                                append(item.text)
+                                append(" ")
+                                pushStyle(SpanStyle(color = MushafGold, fontSize = 15.sp, fontWeight = FontWeight.Bold))
+                                append("﴿")
+                                append(toArabicDigits(item.ayahNumber))
+                                append("﴾")
                                 pop()
-                                append("\n")
+                                if (index != pageAyahs.lastIndex) append("   ")
                             }
-                            append(item.text)
-                            append(" ")
-                            pushStyle(SpanStyle(color = MushafGold, fontSize = 15.sp, fontWeight = FontWeight.Bold))
-                            append("﴿")
-                            append(toArabicDigits(item.ayahNumber))
-                            append("﴾")
-                            pop()
-                            if (index != pageAyahs.lastIndex) append("   ")
                         }
                     }
-                }
-                Text(
-                    text = pageText,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 2.dp, vertical = 6.dp),
-                    color = MushafInk,
-                    textAlign = TextAlign.Justify,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 22.sp,
-                    lineHeight = 42.sp,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        textDirection = TextDirection.ContentOrRtl
+                    Text(
+                        text = pageText,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 2.dp, vertical = 6.dp),
+                        color = MushafInk,
+                        textAlign = TextAlign.Justify,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 22.sp,
+                        lineHeight = 42.sp,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            textDirection = TextDirection.ContentOrRtl
+                        )
                     )
-                )
+                }
                 Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
                 Row(
                     modifier = Modifier.fillMaxWidth().height(28.dp),
@@ -321,7 +350,12 @@ fun MushafReaderPage(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("۞", color = MushafGold, fontSize = 18.sp)
-                    Text(toArabicDigits(pageNumber), color = MushafGreen, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(
+                        toArabicDigits(pageNumber),
+                        color = MushafGreen,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
                     Text("۞", color = MushafGold, fontSize = 18.sp)
                 }
             }
