@@ -303,19 +303,6 @@ fun MushafReaderPage(
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
     var showReaderSettingsDialog by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(initialTool) {
-        when (initialTool) {
-            "surahs" -> showSurahIndex = true
-            "juz" -> showJuzIndex = true
-            "pages" -> showPageIndex = true
-            "bookmarks" -> showBookmarksDialog = true
-            "ayah-bookmarks" -> showAyahBookmarksDialog = true
-            "favorites" -> showFavoritesDialog = true
-            "search" -> showSearchDialog = true
-            "settings" -> showReaderSettingsDialog = true
-        }
-        if (initialTool != null) onInitialToolHandled()
-    }
     var autoFlipPauseToken by remember { mutableIntStateOf(0) }
     var isTouchingPage by remember { mutableStateOf(false) }
     var showReaderControls by rememberSaveable { mutableStateOf(!readerFullScreen) }
@@ -329,6 +316,20 @@ fun MushafReaderPage(
     var searchInput by rememberSaveable { mutableStateOf("") }
     var searchResultIndex by rememberSaveable { mutableIntStateOf(0) }
     var surahIndexQuery by rememberSaveable { mutableStateOf("") }
+
+    LaunchedEffect(initialTool) {
+        when (initialTool) {
+            "surahs" -> showSurahIndex = true
+            "juz" -> showJuzIndex = true
+            "pages" -> showPageIndex = true
+            "bookmarks" -> showBookmarksDialog = true
+            "ayah-bookmarks" -> showAyahBookmarksDialog = true
+            "favorites" -> showFavoritesDialog = true
+            "search" -> showSearchDialog = true
+            "settings" -> showReaderSettingsDialog = true
+        }
+        if (initialTool != null) onInitialToolHandled()
+    }
 
     LaunchedEffect(pageMap, initialSurah, initialAyah) {
         pageNumber = MushafPageRepository.findPageNumber(
