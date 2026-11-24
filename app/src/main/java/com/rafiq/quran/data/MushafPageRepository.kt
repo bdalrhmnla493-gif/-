@@ -50,6 +50,22 @@ object MushafPageRepository {
         require(metadata.pages.map { it.page } == (1..604).toList()) {
             "ترقيم صفحات المصحف غير متصل."
         }
+        require(metadata.pages.zipWithNext().all { (first, second) ->
+            isBefore(first.surah, first.ayah, second.surah, second.ayah)
+        }) {
+            "ترتيب حدود صفحات المصحف غير صحيح."
+        }
+
+        require(metadata.pages.getOrNull(20)?.let {
+            it.page == 21 && it.surah == 2 && it.ayah == 135
+        } == true) {
+            "بداية الصفحة 21 يجب أن تكون سورة البقرة، الآية 135."
+        }
+        require(metadata.pages.getOrNull(21)?.let {
+            it.page == 22 && it.surah == 2 && it.ayah == 142
+        } == true) {
+            "بداية الصفحة 22 يجب أن تكون سورة البقرة، الآية 142."
+        }
         require(metadata.pages.lastOrNull()?.let {
             it.page == 604 && it.surah == 112 && it.ayah == 1
         } == true) {

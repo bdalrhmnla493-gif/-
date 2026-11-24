@@ -6,8 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,14 +60,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.calculateCentroid
+import androidx.compose.ui.input.pointer.calculatePan
+import androidx.compose.ui.input.pointer.calculateZoom
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +81,7 @@ import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSearchResult
 import com.rafiq.quran.data.QuranSurah
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +93,8 @@ import kotlinx.coroutines.withContext
 private val Context.mushafBookmarkStore by preferencesDataStore(name = "rafiq_mushaf_bookmarks")
 private val MushafBookmarkedPagesKey = stringSetPreferencesKey("bookmarked_pages")
 private val FavoriteAyahsKey = stringSetPreferencesKey("favorite_ayahs")
+private val AutoFlipSecondsKey = intPreferencesKey("auto_flip_seconds")
+private val AutoFlipDirectionKey = intPreferencesKey("auto_flip_direction")
 
 private val MushafPaper = Color(0xFFFFFCF5)
 private val MushafInk = Color(0xFF1C211C)
@@ -124,6 +126,13 @@ fun MushafReaderPage(
     val favoriteAyahs = remember(savedFavoriteKeys) {
         QuranFavoriteRepository.decode(savedFavoriteKeys)
     }
+
+    val autoFlipSeconds by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[AutoFlipSecondsKey] ?: 0 }
+        .collectAsState(initial = 0)
+    val autoFlipDirection by context.mushafBookmarkStore.data
+        .map { preferences -> preferences[AutoFlipDirectionKey] ?: 1 }
+        .collectAsState(initial = 1)
     var metadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
@@ -167,7 +176,8 @@ fun MushafReaderPage(
     var showFavoritesDialog by rememberSaveable { mutableStateOf(false) }
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showAutoFlipDialog by rememberSaveable { mutableStateOf(false) }
-    var autoFlipSeconds by rememberSaveable { mutableIntStateOf(0) }
+    var autoFlipPauseToken by remember { mutableIntStateOf(0) }
+    var showPageIndex by rememberSaveable { mutableStateOf(false) }
     var showReaderMenu by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var showAyahPickerDialog by rememberSaveable { mutableStateOf(false) }
@@ -207,14 +217,6 @@ fun MushafReaderPage(
         pageMap.juz, currentBoundary.surah, currentBoundary.ayah
     )
     val currentSurah = surahs.firstOrNull { it.number == currentBoundary.surah }
-    val pageAyahs = remember(surahs, pageMap, pageNumber) {
-        MushafPageRepository.getPageAyahs(surahs, pageMap.pages, pageNumber)
-    }
-    val basmala = remember(surahs) {
-        surahs.firstOrNull { it.number == 1 }?.ayahs?.firstOrNull()?.text.orEmpty()
-    }
-    val showBasmala = currentBoundary.ayah == 1 &&
-        currentBoundary.surah != 1 && currentBoundary.surah != 9
 
     LaunchedEffect(pageNumber, currentBoundary.surah, currentBoundary.ayah, initialPageReady) {
         if (initialPageReady) {
@@ -248,17 +250,28 @@ fun MushafReaderPage(
         }.sortedWith(compareBy<QuranSearchResult> { it.surahNumber }.thenBy { it.ayahNumber })
     }
 
-    val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex ||
+    val isReaderDialogOpen = showPageDialog || showSurahIndex || showJuzIndex || showPageIndex ||
         showBookmarksDialog || showFavoritesDialog || showSurahInfoDialog || showReaderMenu ||
         showSearchDialog || showAutoFlipDialog || showAyahPickerDialog
 
-    LaunchedEffect(pageNumber, autoFlipSeconds, isReaderDialogOpen) {
+    LaunchedEffect(
+        pageNumber,
+        autoFlipSeconds,
+        autoFlipDirection,
+        isReaderDialogOpen,
+        autoFlipPauseToken
+    ) {
         if (autoFlipSeconds > 0 && !isReaderDialogOpen) {
             delay(autoFlipSeconds * 1_000L)
-            if (pageNumber < pageMap.pages.size) {
-                moveToPage(pageNumber + 1)
+            val targetPage = pageNumber + if (autoFlipDirection < 0) -1 else 1
+            if (targetPage in 1..pageMap.pages.size) {
+                moveToPage(targetPage)
             } else {
-                autoFlipSeconds = 0
+                scope.launch {
+                    context.mushafBookmarkStore.edit { preferences ->
+                        preferences[AutoFlipSecondsKey] = 0
+                    }
+                }
             }
         }
     }
@@ -334,30 +347,63 @@ fun MushafReaderPage(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(5.dp))
                 .onSizeChanged { viewportSize = it }
-                .pointerInput(pageNumber, pageZoom, viewportSize) {
-                    if (pageZoom <= 1f) {
-                        var totalDrag = 0f
-                        detectHorizontalDragGestures(
-                            onHorizontalDrag = { change, dragAmount ->
-                                totalDrag += dragAmount
-                                change.consume()
-                            },
-                            onDragEnd = {
-                                when {
-                                    totalDrag < -55f -> moveToPage(pageNumber + 1)
-                                    totalDrag > 55f -> moveToPage(pageNumber - 1)
+                .pointerInput(pageNumber, viewportSize) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val startingZoom = pageZoom
+                        var totalHorizontalPan = 0f
+                        var usedMultiplePointers = false
+
+                        do {
+                            val event = awaitPointerEvent()
+                            val pressedCount = event.changes.count { it.pressed }
+                            if (pressedCount > 1) usedMultiplePointers = true
+
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+
+                            if (usedMultiplePointers || pageZoom > 1f || zoomChange != 1f) {
+                                val oldZoom = pageZoom.coerceAtLeast(1f)
+                                val newZoom = (oldZoom * zoomChange).coerceIn(1f, 4f)
+                                val centroid = event.calculateCentroid(useCurrent = true)
+                                val center = Offset(
+                                    viewportSize.width / 2f,
+                                    viewportSize.height / 2f
+                                )
+                                val anchor = centroid - center
+                                val scaleFactor = newZoom / oldZoom
+                                val candidateOffset = Offset(
+                                    x = (pageOffset.x - anchor.x) * scaleFactor + anchor.x + panChange.x,
+                                    y = (pageOffset.y - anchor.y) * scaleFactor + anchor.y + panChange.y
+                                )
+                                val maxX = (viewportSize.width * (newZoom - 1f) / 2f).coerceAtLeast(0f)
+                                val maxY = (viewportSize.height * (newZoom - 1f) / 2f).coerceAtLeast(0f)
+                                pageZoom = newZoom
+                                pageOffset = if (newZoom == 1f) {
+                                    Offset.Zero
+                                } else {
+                                    Offset(
+                                        candidateOffset.x.coerceIn(-maxX, maxX),
+                                        candidateOffset.y.coerceIn(-maxY, maxY)
+                                    )
+                                }
+                            } else {
+                                totalHorizontalPan += panChange.x
+                            }
+
+                            if (event.changes.any { it.positionChanged() }) {
+                                autoFlipPauseToken++
+                                event.changes.forEach { change ->
+                                    if (change.positionChanged()) change.consume()
                                 }
                             }
-                        )
-                    } else {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            val maxX = (viewportSize.width * (pageZoom - 1f) / 2f).coerceAtLeast(0f)
-                            val maxY = (viewportSize.height * (pageZoom - 1f) / 2f).coerceAtLeast(0f)
-                            pageOffset = Offset(
-                                x = (pageOffset.x + dragAmount.x).coerceIn(-maxX, maxX),
-                                y = (pageOffset.y + dragAmount.y).coerceIn(-maxY, maxY)
-                            )
+                        } while (event.changes.any { it.pressed })
+
+                        if (!usedMultiplePointers && startingZoom <= 1f && pageZoom <= 1f) {
+                            when {
+                                totalHorizontalPan < -55f -> moveToPage(pageNumber + 1)
+                                totalHorizontalPan > 55f -> moveToPage(pageNumber - 1)
+                            }
                         }
                     }
                 }
@@ -379,148 +425,42 @@ fun MushafReaderPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (pageBitmap != null) {
+                    Image(
+                        bitmap = pageBitmap!!,
+                        contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            bitmap = pageBitmap!!,
-                            contentDescription = "صفحة المصحف رقم ${toArabicDigits(pageNumber)}",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 21.dp, vertical = 8.dp),
-                            contentScale = ContentScale.Fit
+                        Text(
+                            "صورة صفحة المصحف غير متاحة حاليًا. لن يتم إنشاء نص بديل أو إعادة ترتيب الآيات.",
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(24.dp)
                         )
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.CenterStart)
-                                .fillMaxHeight()
-                                .padding(vertical = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            repeat(19) {
-                                Text("❧", color = MushafGold.copy(alpha = 0.78f), fontSize = 12.sp)
-                            }
-                        }
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .padding(vertical = 10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            repeat(19) {
-                                Text("❧", color = MushafGold.copy(alpha = 0.78f), fontSize = 12.sp)
-                            }
-                        }
                     }
-                } else {
+                }
+
+                if (pageBitmap == null) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
                     Row(
                         modifier = Modifier.fillMaxWidth().height(28.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("۞", color = MushafGold, fontSize = 20.sp)
+                        Text("۞", color = MushafGold, fontSize = 18.sp)
                         Text(
-                            currentSurah?.name ?: "سورة",
+                            toArabicDigits(pageNumber),
                             color = MushafGreen,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 18.sp
                         )
-                        Text(
-                            "الجزء ${toArabicDigits(currentJuz)}",
-                            color = MushafGreen,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                        Text("۞", color = MushafGold, fontSize = 20.sp)
+                        Text("۞", color = MushafGold, fontSize = 18.sp)
                     }
-                    Spacer(Modifier.height(5.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
-                    if (showBasmala && basmala.isNotBlank()) {
-                        Text(
-                            text = basmala,
-                            modifier = Modifier.fillMaxWidth().padding(top = 9.dp, bottom = 4.dp),
-                            color = MushafInk,
-                            textAlign = TextAlign.Center,
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 23.sp,
-                            lineHeight = 36.sp
-                        )
-                    }
-                    val pageText = remember(pageAyahs, showBasmala, basmala) {
-                        buildAnnotatedString {
-                            pageAyahs.forEachIndexed { index, item ->
-                                val startsNewSurah = item.ayahNumber == 1 &&
-                                    item.surahNumber != 1 && item.surahNumber != 9
-                                if (startsNewSurah && !(index == 0 && showBasmala)) {
-                                    append("\n\n")
-                                    pushStyle(
-                                        SpanStyle(
-                                            color = MushafGreen,
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    )
-                                    append("سورة ${item.surahName}")
-                                    pop()
-                                    append("\n")
-                                    pushStyle(
-                                        SpanStyle(
-                                            color = MushafInk,
-                                            fontSize = 19.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    )
-                                    append(basmala)
-                                    pop()
-                                    append("\n")
-                                }
-                                append(item.text)
-                                append(" ")
-                                pushStyle(SpanStyle(color = MushafGold, fontSize = 15.sp, fontWeight = FontWeight.Bold))
-                                append("﴿")
-                                append(toArabicDigits(item.ayahNumber))
-                                append("﴾")
-                                pop()
-                                if (index != pageAyahs.lastIndex) append("   ")
-                            }
-                        }
-                    }
-                    Text(
-                        text = pageText,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 2.dp, vertical = 6.dp),
-                        color = MushafInk,
-                        textAlign = TextAlign.Justify,
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 22.sp,
-                        lineHeight = 42.sp,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            textDirection = TextDirection.ContentOrRtl
-                        )
-                    )
-                }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(MushafLine))
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(28.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("۞", color = MushafGold, fontSize = 18.sp)
-                    Text(
-                        toArabicDigits(pageNumber),
-                        color = MushafGreen,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                    Text("۞", color = MushafGold, fontSize = 18.sp)
                 }
             }
         }
@@ -569,6 +509,10 @@ fun MushafReaderPage(
                         showJuzIndex = true
                     }) { Text("فهرس الأجزاء") }
                     TextButton(onClick = {
+                        showReaderMenu = false
+                        showPageIndex = true
+                    }) { Text("فهرس الصفحات") }
+                    TextButton(onClick = {
                         onReaderFullScreenChange(!readerFullScreen)
                         showReaderMenu = false
                     }) {
@@ -579,7 +523,7 @@ fun MushafReaderPage(
                         showReaderMenu = false
                     }) { Text("معلومات السورة الحالية") }
                     TextButton(onClick = {
-                        pageZoom = (pageZoom + 0.25f).coerceAtMost(2.5f)
+                        pageZoom = (pageZoom + 0.25f).coerceAtMost(4f)
                         showReaderMenu = false
                     }) { Text("تكبير الصفحة") }
                     TextButton(onClick = {
@@ -627,10 +571,39 @@ fun MushafReaderPage(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("اختر المدة بين كل صفحة والتي تليها.")
+                    Text("اتجاه التقليب")
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[AutoFlipDirectionKey] = 1
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (autoFlipDirection > 0) "✓ من الصفحة الحالية إلى التالية" else "إلى الصفحة التالية")
+                    }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                context.mushafBookmarkStore.edit { preferences ->
+                                    preferences[AutoFlipDirectionKey] = -1
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (autoFlipDirection < 0) "✓ من الصفحة الحالية إلى السابقة" else "إلى الصفحة السابقة")
+                    }
                     listOf(10, 20, 30, 60).forEach { seconds ->
                         TextButton(
                             onClick = {
-                                autoFlipSeconds = seconds
+                                scope.launch {
+                                    context.mushafBookmarkStore.edit { preferences ->
+                                        preferences[AutoFlipSecondsKey] = seconds
+                                    }
+                                }
                                 showAutoFlipDialog = false
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -641,7 +614,11 @@ fun MushafReaderPage(
                     if (autoFlipSeconds > 0) {
                         TextButton(
                             onClick = {
-                                autoFlipSeconds = 0
+                                scope.launch {
+                                    context.mushafBookmarkStore.edit { preferences ->
+                                        preferences[AutoFlipSecondsKey] = 0
+                                    }
+                                }
                                 showAutoFlipDialog = false
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -822,6 +799,44 @@ fun MushafReaderPage(
             },
             confirmButton = {
                 TextButton(onClick = { showJuzIndex = false }) { Text("إغلاق") }
+            }
+        )
+    }
+
+    if (showPageIndex) {
+        AlertDialog(
+            onDismissRequest = { showPageIndex = false },
+            title = { Text("فهرس صفحات المصحف") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 480.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(pageMap.pages, key = { it.page }) { boundary ->
+                        val pageSurah = surahs.firstOrNull { it.number == boundary.surah }
+                        val pageJuz = MushafPageRepository.findJuzNumber(
+                            pageMap.juz,
+                            boundary.surah,
+                            boundary.ayah
+                        )
+                        TextButton(
+                            onClick = {
+                                moveToPage(boundary.page)
+                                showPageIndex = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "صفحة ${toArabicDigits(boundary.page)}  •  ${pageSurah?.name.orEmpty()} ${toArabicDigits(boundary.ayah)}  •  الجزء ${toArabicDigits(pageJuz)}",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.End
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPageIndex = false }) { Text("إغلاق") }
             }
         )
     }

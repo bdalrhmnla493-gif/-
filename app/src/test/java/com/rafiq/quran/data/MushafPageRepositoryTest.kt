@@ -23,13 +23,18 @@ class MushafPageRepositoryTest {
 
     private fun completeMetadata(
         finalPage: MushafPageBoundary = MushafPageBoundary(604, 112, 1),
-        finalJuz: MushafJuzBoundary = MushafJuzBoundary(30, 78, 1)
+        finalJuz: MushafJuzBoundary = MushafJuzBoundary(30, 78, 1),
+        page21: MushafPageBoundary = MushafPageBoundary(21, 2, 135),
+        page22: MushafPageBoundary = MushafPageBoundary(22, 2, 142)
     ) = MushafPageMetadata(
         pages = (1..604).map { page ->
             when (page) {
                 1 -> MushafPageBoundary(1, 1, 1)
+                21 -> page21
+                22 -> page22
                 604 -> finalPage
-                else -> MushafPageBoundary(page, 2, page)
+                in 2..20 -> MushafPageBoundary(page, 2, page)
+                else -> MushafPageBoundary(page, 2, page + 120)
             }
         },
         juz = (1..30).map { index ->
@@ -44,6 +49,28 @@ class MushafPageRepositoryTest {
     @Test
     fun acceptsOnlyComplete604PageAnd30JuzMetadata() {
         MushafPageRepository.validateCompleteMushaf(completeMetadata())
+    }
+
+    @Test
+    fun validatesKnownPage21AndPage22StartingAyahs() {
+        val metadata = completeMetadata()
+        assertEquals(MushafPageBoundary(21, 2, 135), metadata.pages[20])
+        assertEquals(MushafPageBoundary(22, 2, 142), metadata.pages[21])
+        MushafPageRepository.validateCompleteMushaf(metadata)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncorrectPage21StartingAyah() {
+        MushafPageRepository.validateCompleteMushaf(
+            completeMetadata(page21 = MushafPageBoundary(21, 2, 134))
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncorrectPage22StartingAyah() {
+        MushafPageRepository.validateCompleteMushaf(
+            completeMetadata(page22 = MushafPageBoundary(22, 2, 143))
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
