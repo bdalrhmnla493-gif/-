@@ -186,6 +186,7 @@ fun MushafReaderPage(
     var pickerAyahInput by rememberSaveable { mutableStateOf("1") }
     var pageInput by rememberSaveable { mutableStateOf("") }
     var searchInput by rememberSaveable { mutableStateOf("") }
+    var surahIndexQuery by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(pageMap, initialSurah, initialAyah) {
         pageNumber = MushafPageRepository.findPageNumber(
@@ -732,37 +733,95 @@ fun MushafReaderPage(
     }
 
     if (showSurahIndex) {
+        val normalizedSurahQuery = surahIndexQuery.trim()
+        val filteredSurahs = remember(surahs, normalizedSurahQuery) {
+            if (normalizedSurahQuery.isBlank()) {
+                surahs
+            } else {
+                surahs.filter { surah ->
+                    surah.name.contains(normalizedSurahQuery, ignoreCase = true) ||
+                        surah.englishName.contains(normalizedSurahQuery, ignoreCase = true) ||
+                        surah.transliteration.contains(normalizedSurahQuery, ignoreCase = true) ||
+                        surah.number.toString() == normalizedSurahQuery
+                }
+            }
+        }
         AlertDialog(
-            onDismissRequest = { showSurahIndex = false },
+            onDismissRequest = {
+                showSurahIndex = false
+                surahIndexQuery = ""
+            },
             title = { Text("فهرس السور") },
             text = {
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 480.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(surahs, key = { it.number }) { surah ->
-                        TextButton(
-                            onClick = {
-                                moveToPage(
-                                    MushafPageRepository.findPageNumber(
-                                        pageMap.pages, surah.number, 1
-                                    )
-                                )
-                                showSurahIndex = false
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = surahIndexQuery,
+                        onValueChange = { surahIndexQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("ابحث باسم السورة أو رقمها") }
+                    )
+                    if (filteredSurahs.isEmpty()) {
+                        Text("لا توجد سورة مطابقة للبحث.")
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                "${toArabicDigits(surah.number)}. ${surah.name}  •  ${toArabicDigits(surah.ayahs.size)} آية",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.End
-                            )
+                            items(filteredSurahs, key = { it.number }) { surah ->
+                                val startPage = MushafPageRepository.findPageNumber(
+                                    pageMap.pages,
+                                    surah.number,
+                                    1
+                                )
+                                val startJuz = MushafPageRepository.findJuzNumber(
+                                    pageMap.juz,
+                                    surah.number,
+                                    1
+                                )
+                                val revelationLabel = when {
+                                    surah.revelationType.contains("Medinan", ignoreCase = true) ||
+                                        surah.revelationType.contains("مدنية") -> "مدنية"
+                                    surah.revelationType.contains("Meccan", ignoreCase = true) ||
+                                        surah.revelationType.contains("مكية") -> "مكية"
+                                    else -> surah.revelationType
+                                }
+                                TextButton(
+                                    onClick = {
+                                        moveToPage(startPage)
+                                        onSavePosition(surah.number, 1)
+                                        showSurahIndex = false
+                                        surahIndexQuery = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.End
+                                    ) {
+                                        Text(
+                                            "${toArabicDigits(surah.number)}. ${surah.name}",
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.End
+                                        )
+                                        Text(
+                                            "${toArabicDigits(surah.ayahs.size)} آية  •  ${revelationLabel}  •  صفحة ${toArabicDigits(startPage)}  •  الجزء ${toArabicDigits(startJuz)}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            textAlign = TextAlign.End
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showSurahIndex = false }) { Text("إغلاق") }
+                TextButton(onClick = {
+                    showSurahIndex = false
+                    surahIndexQuery = ""
+                }) { Text("إغلاق") }
             }
         )
     }
