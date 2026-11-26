@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,12 +77,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -1293,39 +1296,80 @@ private fun QuranPage(
             }
             item { Text("السور • ${filtered.size}", fontWeight = FontWeight.Bold) }
             items(filtered, key = { it.number }) { surah ->
+                val revelationLabel = when (surah.revelationType) {
+                    "Meccan" -> "مكية"
+                    "Medinan" -> "مدنية"
+                    else -> "غير محدد"
+                }
+                val startingLocation = pageMetadata?.let { metadata ->
+                    val startPage = MushafPageRepository.findPageNumber(metadata.pages, surah.number, 1)
+                    val startJuz = MushafPageRepository.findJuzNumber(metadata.juz, surah.number, 1)
+                    "صفحة ${toArabicDigits(startPage)} • الجزء ${toArabicDigits(startJuz)}"
+                }
+
                 Card(
-                    Modifier.fillMaxWidth().clickable { openReader(surah.number, 1) },
-                    shape = RoundedCornerShape(18.dp),
+                    Modifier.fillMaxWidth().height(56.dp).clickable { openReader(surah.number, 1) },
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(surah.name, fontWeight = FontWeight.Bold)
-                            Text(
-                                surah.transliteration + " • " + surah.ayahs.size + " آية",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                surahInfoViewModel.load(surah, pageMetadata)
-                                showSurahInfoDialog = true
-                            },
-                            enabled = pageMetadata != null,
-                            modifier = Modifier.size(48.dp)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        Row(
+                            Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Filled.Info,
-                                contentDescription = "معلومات سورة ${surah.name}",
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
+                            Box(
+                                Modifier.size(width = 30.dp, height = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    toArabicDigits(surah.number),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(0.dp)
+                            ) {
+                                Text(
+                                    surah.name,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${toArabicDigits(surah.ayahs.size)} آيات • $revelationLabel",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (startingLocation != null) {
+                                    Text(
+                                        startingLocation,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = {
+                                    surahInfoViewModel.load(surah, pageMetadata)
+                                    showSurahInfoDialog = true
+                                },
+                                enabled = pageMetadata != null,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Info,
+                                    contentDescription = "معلومات سورة ${surah.name}",
+                                    tint = MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         }
-                        Text(surah.number.toString(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1560,3 +1604,8 @@ private fun MorePage(
         }
     }
 }
+
+
+private fun toArabicDigits(number: Int): String = number.toString().map { digit ->
+    if (digit in '0'..'9') (digit.code - '0'.code + '٠'.code).toChar() else digit
+}.joinToString("")
