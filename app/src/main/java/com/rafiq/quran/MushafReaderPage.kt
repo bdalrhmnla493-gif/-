@@ -229,7 +229,7 @@ fun MushafReaderPage(
     }
     val readerPanelColor = when (effectiveReaderTheme) {
         "warm" -> Color(0xFFFFF2D8)
-        "night" -> Color(0xFF242D27)
+        "night" -> MushafPaper
         else -> MushafPaper
     }
     val readerFrameColor = when (effectiveReaderTheme) {
