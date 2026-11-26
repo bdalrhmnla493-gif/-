@@ -14,7 +14,7 @@ class SurahInfoViewModel : ViewModel() {
 
     fun load(surah: QuranSurah, pageMetadata: MushafPageMetadata?) {
         if (pageMetadata == null) {
-            state = SurahInfoState.Error("بيانات صفحات المصحف غير متاحة حاليًا.")
+            state = SurahInfoState.Loading
             return
         }
 

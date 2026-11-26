@@ -79,20 +79,17 @@ class SurahInfoViewModelTest {
     }
 
     @Test
-    fun reportsErrorWhenPageMetadataIsMissing() {
+    fun remainsLoadingUntilPageMetadataIsAvailable() {
         val viewModel = SurahInfoViewModel()
+        val surah = sampleSurah(1, "الفاتحة", 7, "Meccan")
 
-        viewModel.load(
-            surah = sampleSurah(1, "الفاتحة", 7, "Meccan"),
-            pageMetadata = null
-        )
+        assertTrue(viewModel.state is SurahInfoState.Loading)
 
-        val state = viewModel.state
-        assertTrue(state is SurahInfoState.Error)
-        assertEquals(
-            "بيانات صفحات المصحف غير متاحة حاليًا.",
-            (state as SurahInfoState.Error).message
-        )
+        viewModel.load(surah = surah, pageMetadata = null)
+        assertTrue(viewModel.state is SurahInfoState.Loading)
+
+        viewModel.load(surah = surah, pageMetadata = pageMetadata)
+        assertTrue(viewModel.state is SurahInfoState.Ready)
     }
 
     @Test

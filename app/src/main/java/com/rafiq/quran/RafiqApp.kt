@@ -1316,7 +1316,8 @@ private fun QuranPage(
                                 surahInfoViewModel.load(surah, pageMetadata)
                                 showSurahInfoDialog = true
                             },
-                            modifier = Modifier.size(40.dp)
+                            enabled = pageMetadata != null,
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 Icons.Filled.Info,
