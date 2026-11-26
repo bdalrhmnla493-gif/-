@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TouchApp
@@ -41,11 +44,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -79,6 +84,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -93,7 +100,10 @@ import com.rafiq.quran.data.MushafPageRepository
 import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
+import com.rafiq.quran.ui.surahinfo.SurahInfoScreen
+import com.rafiq.quran.ui.surahinfo.SurahInfoViewModel
 import com.rafiq.quran.ui.theme.RafiqTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -1005,6 +1015,9 @@ private fun QuranPage(
     var pendingAyahNumber by rememberSaveable { mutableIntStateOf(savedAyah.coerceAtLeast(1)) }
     var pendingReaderTool by rememberSaveable { mutableStateOf<String?>(null) }
     var pageMetadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
+    val surahInfoViewModel: SurahInfoViewModel = viewModel()
+    var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
+    var showTafsirUnavailableDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(context) {
         pageMetadata = withContext(Dispatchers.IO) {
@@ -1298,10 +1311,77 @@ private fun QuranPage(
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
+                        IconButton(
+                            onClick = {
+                                surahInfoViewModel.load(surah, pageMetadata)
+                                showSurahInfoDialog = true
+                            },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Info,
+                                contentDescription = "معلومات سورة ${surah.name}",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
                         Text(surah.number.toString(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+
+        if (showSurahInfoDialog) {
+            Dialog(
+                onDismissRequest = { showSurahInfoDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(0.94f).fillMaxHeight(0.84f),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "معلومات السورة",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = { showSurahInfoDialog = false }) {
+                                Icon(Icons.Filled.Close, contentDescription = "إغلاق")
+                            }
+                        }
+                        SurahInfoScreen(
+                            state = surahInfoViewModel.state,
+                            onOpenSurah = { info ->
+                                showSurahInfoDialog = false
+                                openReader(info.number)
+                            },
+                            onOpenTafsir = { showTafsirUnavailableDialog = true },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (showTafsirUnavailableDialog) {
+            AlertDialog(
+                onDismissRequest = { showTafsirUnavailableDialog = false },
+                title = { Text("التفسير غير متاح") },
+                text = {
+                    Text("لم يُعتمد بعد مصدر تفسير موثوق ومرخّص داخل التطبيق.")
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTafsirUnavailableDialog = false }) {
+                        Text("حسنًا")
+                    }
+                }
+            )
         }
     }
 }
