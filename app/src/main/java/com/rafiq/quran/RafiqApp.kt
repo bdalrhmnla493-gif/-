@@ -100,11 +100,14 @@ import com.rafiq.quran.data.PrayerWeatherRepository
 import com.rafiq.quran.data.QuranRepository
 import com.rafiq.quran.data.MushafPageMetadata
 import com.rafiq.quran.data.MushafPageRepository
-import com.rafiq.quran.data.QuranSearch
 import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
 import com.rafiq.quran.ui.surahinfo.SurahInfoScreen
 import com.rafiq.quran.ui.surahinfo.SurahInfoViewModel
+import com.rafiq.quran.ui.hub.HubCounts
+import com.rafiq.quran.ui.hub.HubState
+import com.rafiq.quran.ui.hub.LastReading
+import com.rafiq.quran.ui.hub.QuranHubScreen
 import com.rafiq.quran.ui.theme.RafiqTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
@@ -1014,33 +1017,31 @@ private fun QuranPage(
 ) {
     val context = LocalContext.current
     var selectedSurah by rememberSaveable { mutableIntStateOf(0) }
-    var query by rememberSaveable { mutableStateOf("") }
     var pendingAyahNumber by rememberSaveable { mutableIntStateOf(savedAyah.coerceAtLeast(1)) }
     var pendingReaderTool by rememberSaveable { mutableStateOf<String?>(null) }
     var pageMetadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
+    var pageMetadataError by remember { mutableStateOf<String?>(null) }
+    var pageMetadataRetryCount by remember { mutableIntStateOf(0) }
     val surahInfoViewModel: SurahInfoViewModel = viewModel()
     var showSurahInfoDialog by rememberSaveable { mutableStateOf(false) }
     var showTafsirUnavailableDialog by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(context) {
-        pageMetadata = withContext(Dispatchers.IO) {
-            runCatching { MushafPageRepository.load(context) }.getOrNull()
+    LaunchedEffect(context, pageMetadataRetryCount) {
+        pageMetadataError = null
+        val result = withContext(Dispatchers.IO) {
+            runCatching { MushafPageRepository.load(context) }
+        }
+        pageMetadata = result.getOrNull()
+        pageMetadataError = if (result.isFailure) {
+            "تعذر تحميل بيانات فهارس المصحف."
+        } else {
+            null
         }
     }
 
     val allSurahs = surahs ?: emptyList()
     val active = allSurahs.firstOrNull { it.number == selectedSurah }
     val lastSurah = allSurahs.firstOrNull { it.number == savedSurah }
-    val lastPage = if (savedSurah in 1..114) {
-        pageMetadata?.let {
-            MushafPageRepository.findPageNumber(it.pages, savedSurah, savedAyah.coerceAtLeast(1))
-        }
-    } else null
-    val lastJuz = if (savedSurah in 1..114) {
-        pageMetadata?.let {
-            MushafPageRepository.findJuzNumber(it.juz, savedSurah, savedAyah.coerceAtLeast(1))
-        }
-    } else null
 
     fun openReader(surahNumber: Int, ayahNumber: Int = 1, tool: String? = null) {
         selectedSurah = surahNumber.coerceIn(1, 114)
@@ -1065,315 +1066,64 @@ private fun QuranPage(
             initialTool = pendingReaderTool,
             onInitialToolHandled = { pendingReaderTool = null }
         )
-    } else if (loading || (surahs == null && error == null)) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(12.dp))
-                Text("جاري تجهيز المصحف...")
-            }
-        }
-    } else if (error != null) {
-        Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(error, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = retry) { Text("إعادة المحاولة") }
-        }
     } else {
-        val filtered = allSurahs.filter {
-            query.isBlank() ||
-                it.name.contains(query.trim()) ||
-                it.transliteration.contains(query.trim(), ignoreCase = true) ||
-                it.englishName.contains(query.trim(), ignoreCase = true)
-        }
-        val matchingAyahs = remember(allSurahs, query) {
-            QuranSearch.search(allSurahs, query, limit = 100)
+        val metadata = pageMetadata
+        val lastReading = if (lastSurah != null && metadata != null) {
+            val savedAyahNumber = savedAyah.coerceIn(1, lastSurah.ayahs.size)
+            LastReading(
+                surahName = lastSurah.name,
+                ayah = savedAyahNumber,
+                page = MushafPageRepository.findPageNumber(
+                    metadata.pages, lastSurah.number, savedAyahNumber
+                ),
+                juz = MushafPageRepository.findJuzNumber(
+                    metadata.juz, lastSurah.number, savedAyahNumber
+                )
+            )
+        } else {
+            null
         }
 
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Card(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            "القرآن الكريم",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            "مصحفك وقراءتك وفهارسك في مكان واحد",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        if (lastSurah != null) {
-                            Text(
-                                "آخر موضع قراءة: ${lastSurah.name} • الآية ${savedAyah.coerceAtLeast(1)}",
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                buildString {
-                                    if (lastPage != null) append("الصفحة $lastPage")
-                                    if (lastJuz != null) {
-                                        if (isNotEmpty()) append(" • ")
-                                        append("الجزء $lastJuz")
-                                    }
-                                },
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Button(
-                                onClick = { openReader(lastSurah.number, savedAyah.coerceAtLeast(1)) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.Bookmark, contentDescription = null)
-                                Spacer(Modifier.size(8.dp))
-                                Text("متابعة القراءة")
-                            }
-                        } else {
-                            Button(
-                                onClick = { openReader(1, 1) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.MenuBook, contentDescription = null)
-                                Spacer(Modifier.size(8.dp))
-                                Text("ابدأ القراءة")
-                            }
-                        }
-                    }
-                }
+        val hubState = when {
+            error != null -> HubState.Error(error) {
+                retry()
+                pageMetadataRetryCount++
             }
-
-            item {
-                Text("الوصول السريع", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            loading || surahs == null || (pageMetadata == null && pageMetadataError == null) -> {
+                HubState.Loading
             }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "فهرس السور",
-                        subtitle = "114 سورة",
-                        icon = Icons.Filled.MenuBook,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "surahs") }
-                    )
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "فهرس الأجزاء",
-                        subtitle = "30 جزءًا",
-                        icon = Icons.Filled.AutoStories,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "juz") }
-                    )
-                }
+            pageMetadataError != null -> HubState.Error(pageMetadataError!!) {
+                retry()
+                pageMetadataRetryCount++
             }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "فهرس الصفحات",
-                        subtitle = "604 صفحات",
-                        icon = Icons.Filled.Bookmark,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "pages") }
+            else -> {
+                val readyMetadata = requireNotNull(metadata)
+                HubState.Ready(
+                    last = lastReading,
+                    counts = HubCounts(
+                        surahs = allSurahs.size,
+                        juz = readyMetadata.juz.size,
+                        pages = readyMetadata.pages.size
                     )
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "علامات الصفحات",
-                        subtitle = "مواضعك المحفوظة",
-                        icon = Icons.Filled.Bookmark,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "bookmarks") }
-                    )
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "علامات الآيات",
-                        subtitle = "أسماء وألوان",
-                        icon = Icons.Filled.Bookmark,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "ayah-bookmarks") }
-                    )
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "الآيات المفضلة",
-                        subtitle = "مع ملاحظاتك",
-                        icon = Icons.Filled.AutoStories,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "favorites") }
-                    )
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "البحث في القرآن",
-                        subtitle = "بحث دون إنترنت",
-                        icon = Icons.Filled.TouchApp,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "search") }
-                    )
-                    QuranHubAction(
-                        modifier = Modifier.weight(1f),
-                        title = "إعدادات المصحف",
-                        subtitle = "المظهر والقراءة",
-                        icon = Icons.Filled.Settings,
-                        onClick = { openReader(savedSurah.takeIf { it in 1..114 } ?: 1, savedAyah, "settings") }
-                    )
-                }
-            }
-            item {
-                Text(
-                    "التلاوات والتفسير ومعاني الكلمات قيد التجهيز بعد اعتماد مصادرها وحقوق استخدامها.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
                 )
             }
-            item {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("ابحث عن سورة أو آية") },
-                    shape = RoundedCornerShape(16.dp)
-                )
-            }
-            if (query.isNotBlank()) {
-                item {
-                    Text("نتائج البحث في الآيات", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-                if (matchingAyahs.isEmpty()) {
-                    item {
-                        Text("لا توجد آيات مطابقة لعبارة البحث.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    items(matchingAyahs, key = { "search-${it.surahNumber}-${it.ayahNumber}" }) { result ->
-                        Card(
-                            Modifier.fillMaxWidth().clickable {
-                                openReader(result.surahNumber, result.ayahNumber)
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    "${result.surahName} • الآية ${result.ayahNumber}",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(result.text, maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End)
-                            }
-                        }
-                    }
-                }
-                if (matchingAyahs.size == 100) {
-                    item {
-                        Text(
-                            "تظهر أول 100 نتيجة. أضف كلمات أكثر لتضييق البحث.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-            item { Text("السور • ${filtered.size}", fontWeight = FontWeight.Bold) }
-            items(filtered, key = { it.number }) { surah ->
-                val revelationLabel = when (surah.revelationType) {
-                    "Meccan" -> "مكية"
-                    "Medinan" -> "مدنية"
-                    else -> "غير محدد"
-                }
-                val startingLocation = pageMetadata?.let { metadata ->
-                    val startPage = MushafPageRepository.findPageNumber(metadata.pages, surah.number, 1)
-                    val startJuz = MushafPageRepository.findJuzNumber(metadata.juz, surah.number, 1)
-                    "صفحة ${toArabicDigits(startPage)} • الجزء ${toArabicDigits(startJuz)}"
-                }
-
-                Card(
-                    Modifier.fillMaxWidth().height(56.dp).clickable { openReader(surah.number, 1) },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                        Row(
-                            Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                Modifier.size(width = 30.dp, height = 48.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    toArabicDigits(surah.number),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Column(
-                                Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(0.dp)
-                            ) {
-                                Text(
-                                    surah.name,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "${toArabicDigits(surah.ayahs.size)} آيات • $revelationLabel",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                if (startingLocation != null) {
-                                    Text(
-                                        startingLocation,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = {
-                                    surahInfoViewModel.load(surah, pageMetadata)
-                                    showSurahInfoDialog = true
-                                },
-                                enabled = pageMetadata != null,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Info,
-                                    contentDescription = "معلومات سورة ${surah.name}",
-                                    tint = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
+
+        val readerSurah = savedSurah.takeIf { it in 1..114 } ?: 1
+        val readerAyah = savedAyah.coerceAtLeast(1)
+        QuranHubScreen(
+            state = hubState,
+            onContinue = { openReader(readerSurah, readerAyah) },
+            onOpenMushaf = { openReader(readerSurah, readerAyah) },
+            onSearch = { openReader(readerSurah, readerAyah, "search") },
+            onSurahIndex = { openReader(readerSurah, readerAyah, "surahs") },
+            onJuzIndex = { openReader(readerSurah, readerAyah, "juz") },
+            onPageIndex = { openReader(readerSurah, readerAyah, "pages") },
+            onPageBookmarks = { openReader(readerSurah, readerAyah, "bookmarks") },
+            onAyahBookmarks = { openReader(readerSurah, readerAyah, "ayah-bookmarks") },
+            onFavorites = { openReader(readerSurah, readerAyah, "favorites") },
+            onSettings = { openReader(readerSurah, readerAyah, "settings") }
+        )
 
         if (showSurahInfoDialog) {
             Dialog(
