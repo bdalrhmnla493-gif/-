@@ -1,6 +1,7 @@
 package com.rafiq.quran
 
 import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -104,6 +105,11 @@ import com.rafiq.quran.data.QuranSurah
 import com.rafiq.quran.domain.TasbeehCounter
 import com.rafiq.quran.ui.surahinfo.SurahInfoScreen
 import com.rafiq.quran.ui.surahinfo.SurahInfoViewModel
+import com.rafiq.quran.ui.home.HomeAyah
+import com.rafiq.quran.ui.home.HomeHubScreen
+import com.rafiq.quran.ui.home.HomeLastRead
+import com.rafiq.quran.ui.home.HomeSection
+import com.rafiq.quran.ui.home.todayTexts
 import com.rafiq.quran.ui.hub.HubCounts
 import com.rafiq.quran.ui.hub.HubState
 import com.rafiq.quran.ui.hub.LastReading
@@ -111,6 +117,8 @@ import com.rafiq.quran.ui.hub.QuranHubScreen
 import com.rafiq.quran.ui.theme.RafiqTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -121,6 +129,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 
 private val Context.rafiqDataStore by preferencesDataStore(name = "rafiq_preferences")
 private val ThemeModeKey = stringPreferencesKey("theme_mode")
@@ -128,6 +137,9 @@ private val TasbeehCountKey = intPreferencesKey("tasbeeh_count")
 private val TasbeehPhraseKey = stringPreferencesKey("tasbeeh_phrase")
 private val LastReadSurahKey = intPreferencesKey("last_read_surah")
 private val LastReadAyahKey = intPreferencesKey("last_read_ayah")
+private val HomeAyahDateKey = stringPreferencesKey("home_ayah_date")
+private val HomeAyahSurahKey = intPreferencesKey("home_ayah_surah")
+private val HomeAyahNumberKey = intPreferencesKey("home_ayah_number")
 private val SelectedLocationNameKey = stringPreferencesKey("selected_location_name")
 private val SelectedGovernorateIdKey = stringPreferencesKey("selected_governorate_id")
 private val SelectedLatitudeKey = stringPreferencesKey("selected_location_latitude")
@@ -171,11 +183,20 @@ fun RafiqApp() {
         var quranError by remember { mutableStateOf<String?>(null) }
         var retryCount by remember { mutableIntStateOf(0) }
         var infoMessage by remember { mutableStateOf<String?>(null) }
+        var homePageMetadata by remember { mutableStateOf<MushafPageMetadata?>(null) }
 
         val tasbeehCount = preferences[TasbeehCountKey] ?: 0
         val phrase = preferences[TasbeehPhraseKey] ?: dhikrPhrases.first()
         val savedSurah = preferences[LastReadSurahKey] ?: 0
         val savedAyah = preferences[LastReadAyahKey] ?: 1
+        val savedHomeAyahDate = preferences[HomeAyahDateKey] ?: ""
+        val savedHomeAyahSurah = preferences[HomeAyahSurahKey] ?: 0
+        val savedHomeAyahNumber = preferences[HomeAyahNumberKey] ?: 0
+        val deviceDateKey = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            LocalDate.now(ZoneId.systemDefault()).toString()
+        } else {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        }
         val savedLocationName = preferences[SelectedLocationNameKey] ?: ""
         val savedGovernorateId = preferences[SelectedGovernorateIdKey] ?: ""
         val selectedLatitude = preferences[SelectedLatitudeKey]?.toDoubleOrNull()
@@ -254,7 +275,7 @@ fun RafiqApp() {
         }
 
         LaunchedEffect(tab, retryCount) {
-            if (tab == AppTab.QURAN && surahs == null && !quranLoading) {
+            if ((tab == AppTab.HOME || tab == AppTab.QURAN) && surahs == null && !quranLoading) {
                 quranLoading = true
                 quranError = null
                 try {
@@ -263,6 +284,35 @@ fun RafiqApp() {
                     quranError = "تعذر تحميل المصحف. تأكد من ملفات القرآن ثم أعد المحاولة."
                 } finally {
                     quranLoading = false
+                }
+            }
+        }
+
+        LaunchedEffect(tab) {
+            if (tab == AppTab.HOME && homePageMetadata == null) {
+                homePageMetadata = runCatching { MushafPageRepository.load(context) }.getOrNull()
+            }
+        }
+
+        LaunchedEffect(tab, surahs, deviceDateKey) {
+            if (tab == AppTab.HOME && surahs != null) {
+                val stored = context.rafiqDataStore.data.first()
+                val storedSurahNumber = stored[HomeAyahSurahKey] ?: 0
+                val storedAyahNumber = stored[HomeAyahNumberKey] ?: 0
+                val storedSurah = surahs!!.firstOrNull { it.number == storedSurahNumber }
+                val hasValidAyah = storedSurah?.ayahs?.any { it.number == storedAyahNumber } == true
+                if (stored[HomeAyahDateKey] != deviceDateKey || !hasValidAyah) {
+                    val candidates = surahs!!.flatMap { surah ->
+                        surah.ayahs.map { ayah -> surah.number to ayah.number }
+                    }
+                    if (candidates.isNotEmpty()) {
+                        val selected = candidates.random()
+                        context.rafiqDataStore.edit { values ->
+                            values[HomeAyahDateKey] = deviceDateKey
+                            values[HomeAyahSurahKey] = selected.first
+                            values[HomeAyahNumberKey] = selected.second
+                        }
+                    }
                 }
             }
         }
@@ -320,20 +370,171 @@ fun RafiqApp() {
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (tab) {
-                    AppTab.HOME -> HomePage(
-                        savedSurah = savedSurah,
-                        savedAyah = savedAyah,
-                        locationName = savedLocationName,
-                        prayerTimes = prayerTimes,
-                        weather = currentWeather,
-                        prayerLoading = prayerLoading,
-                        prayerError = prayerError,
-                        onOpenQuran = { tab = AppTab.QURAN },
-                        onOpenAdhkar = { tab = AppTab.ADHKAR },
-                        onOpenTasbeeh = { tab = AppTab.TASBEEH },
-                        onOpenPrayer = { tab = AppTab.PRAYER },
-                        onFeature = { infoMessage = it }
-                    )
+                    AppTab.HOME -> {
+                        val selectedSurah = surahs?.firstOrNull { it.number == savedHomeAyahSurah }
+                        val selectedAyah = if (savedHomeAyahDate == deviceDateKey) {
+                            selectedSurah?.ayahs?.firstOrNull { it.number == savedHomeAyahNumber }
+                        } else {
+                            null
+                        }
+                        val ayahState = when {
+                            quranError != null -> HomeSection.Unavailable
+                            surahs == null -> HomeSection.Loading
+                            selectedSurah != null && selectedAyah != null -> HomeSection.Ready(
+                                HomeAyah(
+                                    text = selectedAyah.text,
+                                    surahName = selectedSurah.name,
+                                    ayah = selectedAyah.number
+                                )
+                            )
+                            else -> HomeSection.Loading
+                        }
+                        val lastReadSurah = surahs?.firstOrNull { it.number == savedSurah }
+                        val lastRead = if (lastReadSurah != null && lastReadSurah.ayahs.isNotEmpty()) {
+                            val validAyah = savedAyah.coerceIn(1, lastReadSurah.ayahs.size)
+                            HomeLastRead(
+                                surahName = lastReadSurah.name,
+                                ayah = validAyah,
+                                page = homePageMetadata?.let {
+                                    MushafPageRepository.findPageNumber(it.pages, lastReadSurah.number, validAyah)
+                                }
+                            )
+                        } else {
+                            null
+                        }
+                        val (hijriText, gregorianText) = remember(deviceDateKey) { todayTexts() }
+                        val isFriday = Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
+
+                        HomeHubScreen(
+                            hijriText = hijriText,
+                            gregorianText = gregorianText,
+                            lastRead = lastRead,
+                            ayah = ayahState,
+                            dhikr = HomeSection.Unavailable,
+                            onOpenQuran = { tab = AppTab.QURAN },
+                            onContinue = { tab = AppTab.QURAN },
+                            onRefreshAyah = {
+                                val allAyahs = surahs.orEmpty().flatMap { surah ->
+                                    surah.ayahs.map { ayah -> surah.number to ayah.number }
+                                }
+                                val candidates = allAyahs.filterNot {
+                                    it.first == savedHomeAyahSurah && it.second == savedHomeAyahNumber
+                                }
+                                val selected = (candidates.ifEmpty { allAyahs }).randomOrNull()
+                                if (selected != null) {
+                                    scope.launch {
+                                        context.rafiqDataStore.edit { values ->
+                                            values[HomeAyahDateKey] = deviceDateKey
+                                            values[HomeAyahSurahKey] = selected.first
+                                            values[HomeAyahNumberKey] = selected.second
+                                        }
+                                    }
+                                }
+                            },
+                            onOpenAzkar = { tab = AppTab.ADHKAR },
+                            onCopyDhikr = {},
+                            onSettings = { tab = AppTab.MORE },
+                            headerContent = {
+                                HomeHeader(
+                                    locationName = savedLocationName,
+                                    weather = currentWeather,
+                                    onNotifications = { infoMessage = "الإشعارات" },
+                                    onSettings = { tab = AppTab.MORE }
+                                )
+                            },
+                            topContent = {
+                                PrayerSummaryCard(
+                                    locationName = savedLocationName,
+                                    prayerTimes = prayerTimes,
+                                    loading = prayerLoading,
+                                    errorMessage = prayerError,
+                                    onOpenPrayer = { tab = AppTab.PRAYER }
+                                )
+                            },
+                            additionalContent = {
+                                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    HomeSectionTitle("رحلتك وإنجازاتك")
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        HomeStatusCard("🔥", "سلسلة الاستمرار", "غير مسجلة بعد", Modifier.weight(1f)) {
+                                            infoMessage = "سلسلة الاستمرار"
+                                        }
+                                        HomeStatusCard("🏆", "إنجازاتي", "لا توجد بيانات بعد", Modifier.weight(1f)) {
+                                            infoMessage = "الإنجازات"
+                                        }
+                                        HomeStatusCard("🪙", "نقاطي", "غير مفعّلة", Modifier.weight(1f)) {
+                                            infoMessage = "النقاط"
+                                        }
+                                    }
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    HomeSectionTitle("المميزات السريعة")
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        HomeFeatureCard("🎧", "مشغل القرآن", "", Modifier.weight(1f)) {
+                                            infoMessage = "مشغل القرآن"
+                                        }
+                                        HomeFeatureCard("📖", "ختمتي ورحلتي", "", Modifier.weight(1f)) {
+                                            infoMessage = "ختمتي ورحلتي"
+                                        }
+                                        HomeFeatureCard("🧭", "القبلة", "", Modifier.weight(1f)) {
+                                            infoMessage = "القبلة"
+                                        }
+                                        HomeFeatureCard("🌿", "تدبر آية", "", Modifier.weight(1f)) {
+                                            infoMessage = "تدبر آية"
+                                        }
+                                        HomeFeatureCard("📿", "السبحة الذكية", "", Modifier.weight(1f)) {
+                                            tab = AppTab.TASBEEH
+                                        }
+                                    }
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                    HomeSectionTitle("محتوى مميز يوميًا")
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        HomeFeatureCard("🌙", "أذكار النوم", "غير متاحة بعد", Modifier.weight(1f)) {
+                                            infoMessage = "أذكار النوم"
+                                        }
+                                        HomeFeatureCard("✨", "قيام الليل", "غير متاح بعد", Modifier.weight(1f)) {
+                                            infoMessage = "قيام الليل"
+                                        }
+                                        HomeFeatureCard(
+                                            "🕌",
+                                            "أذكار الجمعة",
+                                            if (isFriday) "اليوم الجمعة" else "غير متاحة بعد",
+                                            Modifier.weight(1f)
+                                        ) {
+                                            infoMessage = "أذكار الجمعة"
+                                        }
+                                    }
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .clip(RoundedCornerShape(30.dp))
+                                            .background(Color(0xFFEAF0E8))
+                                            .border(1.dp, HomeGold, RoundedCornerShape(30.dp))
+                                            .padding(horizontal = 12.dp, vertical = 9.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("✓", color = HomeGreen, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "  المصحف والسبحة الأساسية متاحان دون إنترنت",
+                                            color = HomeGreen,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    Text(
+                                        "مواقيت الصلاة والطقس يحتاجان اتصالًا لتحديث البيانات.",
+                                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                                        color = HomeMuted,
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            },
+                            onOpenMore = { tab = AppTab.MORE }
+                        )
+                    }
                     AppTab.QURAN -> QuranPage(
                         surahs = surahs,
                         loading = quranLoading,
@@ -711,7 +912,8 @@ private val HomeMuted = Color(0xFF776F60)
 private fun HomeHeader(
     locationName: String,
     weather: CurrentWeather?,
-    onNotifications: () -> Unit
+    onNotifications: () -> Unit,
+    onSettings: (() -> Unit)? = null
 ) {
     Box(
         Modifier.fillMaxWidth()
@@ -732,7 +934,10 @@ private fun HomeHeader(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                HomeHeaderAction(symbol = "🔔", onClick = onNotifications)
+                onSettings?.let { HomeHeaderAction(symbol = "⚙️", onClick = it) }
+            }
             Column(
                 Modifier.weight(1f).padding(horizontal = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
